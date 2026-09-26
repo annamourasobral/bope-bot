@@ -27,17 +27,24 @@ module.exports = {
     const start = (page - 1) * PAGE_SIZE;
     const pageMembers = members.slice(start, start + PAGE_SIZE);
 
-    const lines = pageMembers.map(
-      (m, i) =>
-        `${start + i + 1}. **${m.nick}** — ${m.nome} (${m.origem}, ${m.patente}) — <@${m.discord_id}>${
-          m.active ? '' : ' _(inativo)_'
-        }`
-    );
+    const season = await db.getActiveSeason();
+    const totals = season ? await db.getSeasonTotals(season.id) : new Map();
+
+    const lines = pageMembers.map((m, i) => {
+      const points = season ? ` — ${totals.get(m.discord_id) || 0}/${db.SEASON_TOTAL_MAX} pts` : '';
+      return `${start + i + 1}. **${m.nick}** — ${m.nome} (${m.origem}, ${m.patente})${points} — <@${m.discord_id}>${
+        m.active ? '' : ' _(inativo)_'
+      }`;
+    });
 
     const embed = new EmbedBuilder()
       .setTitle(`Membros da BØPE (${members.length}/140)`)
       .setDescription(lines.join('\n'))
-      .setFooter({ text: `Página ${page}/${totalPages}` })
+      .setFooter({
+        text: season
+          ? `${season.name} · Página ${page}/${totalPages}`
+          : `Página ${page}/${totalPages}`,
+      })
       .setColor(0x2b2d31);
 
     await interaction.reply({ embeds: [embed] });

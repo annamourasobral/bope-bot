@@ -127,6 +127,14 @@ async function getSeasonTotal(memberId, seasonId) {
   return Number(rows[0].total);
 }
 
+async function getSeasonTotals(seasonId) {
+  const { rows } = await pool.query(
+    'SELECT member_id, SUM(points) AS total FROM weekly_points WHERE season_id = $1 GROUP BY member_id',
+    [seasonId]
+  );
+  return new Map(rows.map((r) => [r.member_id, Number(r.total)]));
+}
+
 async function getWeeklyPoints(memberId, seasonId) {
   const { rows } = await pool.query(
     'SELECT week_number, points FROM weekly_points WHERE member_id = $1 AND season_id = $2 ORDER BY week_number ASC',
@@ -190,6 +198,7 @@ module.exports = {
   getMember,
   listMembers,
   getSeasonTotal,
+  getSeasonTotals,
   getWeeklyPoints,
   setWeeklyPoints,
   getRanking,
