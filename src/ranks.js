@@ -37,10 +37,7 @@ async function syncRankRole(guild, discordId, rankName) {
       await member.roles.add(targetRoleId);
     }
   } catch (err) {
-    console.warn(
-      `Não foi possível sincronizar cargo de patente para ${discordId}:`,
-      err.message
-    );
+    console.warn(`Não foi possível sincronizar cargo de patente para ${discordId}:`, err.message);
   }
 }
 

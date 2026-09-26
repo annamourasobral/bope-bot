@@ -3,9 +3,7 @@ const { DEFAULT_RANK, RANK_NAMES } = require('../ranks');
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL?.includes('localhost')
-    ? false
-    : { rejectUnauthorized: false },
+  ssl: process.env.DATABASE_URL?.includes('localhost') ? false : { rejectUnauthorized: false },
 });
 
 const RANK_LIST_SQL = RANK_NAMES.map((n) => `'${n}'`).join(', ');
@@ -112,17 +110,12 @@ async function updateMember(discordId, fields) {
 }
 
 async function getMember(discordId) {
-  const { rows } = await pool.query(
-    'SELECT * FROM members WHERE discord_id = $1',
-    [discordId]
-  );
+  const { rows } = await pool.query('SELECT * FROM members WHERE discord_id = $1', [discordId]);
   return rows[0] || null;
 }
 
 async function listMembers() {
-  const { rows } = await pool.query(
-    'SELECT * FROM members ORDER BY nick ASC'
-  );
+  const { rows } = await pool.query('SELECT * FROM members ORDER BY nick ASC');
   return rows;
 }
 
@@ -161,10 +154,10 @@ async function setWeeklyPoints(memberId, seasonId, weekNumber, points, updatedBy
       [memberId, seasonId]
     );
   } else {
-    await pool.query(
-      'DELETE FROM season_completions WHERE member_id = $1 AND season_id = $2',
-      [memberId, seasonId]
-    );
+    await pool.query('DELETE FROM season_completions WHERE member_id = $1 AND season_id = $2', [
+      memberId,
+      seasonId,
+    ]);
   }
 
   return rows[0];

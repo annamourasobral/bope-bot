@@ -50,7 +50,11 @@ module.exports = {
         { name: 'Origem', value: member.origem, inline: true },
         { name: 'Patente', value: member.patente, inline: true },
         { name: 'Status', value: member.active ? 'Ativo' : 'Inativo', inline: true },
-        { name: 'Temporada', value: `${season.name} (semana atual: ${currentWeek})`, inline: false },
+        {
+          name: 'Temporada',
+          value: `${season.name} (semana atual: ${currentWeek})`,
+          inline: false,
+        },
         { name: 'Pontos por semana', value: weeksLine, inline: false },
         { name: 'Total na temporada', value: `${total}/${db.SEASON_TOTAL_MAX}`, inline: false }
       );

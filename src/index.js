@@ -1,11 +1,16 @@
 require('dotenv').config();
 const fs = require('node:fs');
 const path = require('node:path');
-const { Client, GatewayIntentBits, Collection, MessageFlags } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, MessageFlags, ActivityType } = require('discord.js');
 const db = require('./db');
 const { startHealthServer } = require('./health');
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds],
+  presence: {
+    status: 'online',
+  },
+});
 client.commands = new Collection();
 
 const commandsPath = path.join(__dirname, 'commands');

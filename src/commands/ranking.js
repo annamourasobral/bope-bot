@@ -9,13 +9,19 @@ module.exports = {
   async execute(interaction) {
     const season = await db.getActiveSeason();
     if (!season) {
-      await interaction.reply({ content: 'Nenhuma temporada ativa configurada.', flags: MessageFlags.Ephemeral });
+      await interaction.reply({
+        content: 'Nenhuma temporada ativa configurada.',
+        flags: MessageFlags.Ephemeral,
+      });
       return;
     }
 
     const ranking = await db.getRanking(season.id);
     if (ranking.length === 0) {
-      await interaction.reply({ content: 'Nenhum membro registrado ainda.', flags: MessageFlags.Ephemeral });
+      await interaction.reply({
+        content: 'Nenhum membro registrado ainda.',
+        flags: MessageFlags.Ephemeral,
+      });
       return;
     }
 
@@ -36,7 +42,9 @@ module.exports = {
     if (others.length > 0) {
       lines.push('**Classificação geral:**');
       others.slice(0, 20).forEach((r, i) => {
-        lines.push(`${finishers.length + i + 1}. **${r.nick}** (${r.origem}) — ${r.total}/${db.SEASON_TOTAL_MAX} pts`);
+        lines.push(
+          `${finishers.length + i + 1}. **${r.nick}** (${r.origem}) — ${r.total}/${db.SEASON_TOTAL_MAX} pts`
+        );
       });
     }
 

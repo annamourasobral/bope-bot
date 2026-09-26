@@ -53,7 +53,10 @@ module.exports = {
 
     const season = await db.getActiveSeason();
     if (!season) {
-      await interaction.reply({ content: 'Nenhuma temporada ativa configurada.', flags: MessageFlags.Ephemeral });
+      await interaction.reply({
+        content: 'Nenhuma temporada ativa configurada.',
+        flags: MessageFlags.Ephemeral,
+      });
       return;
     }
 

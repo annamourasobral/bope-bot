@@ -11,7 +11,10 @@ module.exports = {
         .setName('nova')
         .setDescription('(Oficiais) Inicia uma nova temporada, encerrando a atual')
         .addStringOption((opt) =>
-          opt.setName('nome').setDescription('Nome da temporada (ex: Temporada 3)').setRequired(true)
+          opt
+            .setName('nome')
+            .setDescription('Nome da temporada (ex: Temporada 3)')
+            .setRequired(true)
         )
         .addStringOption((opt) =>
           opt
@@ -28,7 +31,10 @@ module.exports = {
     if (sub === 'atual') {
       const season = await db.getActiveSeason();
       if (!season) {
-        await interaction.reply({ content: 'Nenhuma temporada ativa configurada.', flags: MessageFlags.Ephemeral });
+        await interaction.reply({
+          content: 'Nenhuma temporada ativa configurada.',
+          flags: MessageFlags.Ephemeral,
+        });
         return;
       }
       const week = db.currentWeekNumber(season);
@@ -40,7 +46,10 @@ module.exports = {
 
     if (sub === 'nova') {
       if (!isOfficer(interaction)) {
-        await interaction.reply({ content: 'Apenas oficiais podem criar temporadas.', flags: MessageFlags.Ephemeral });
+        await interaction.reply({
+          content: 'Apenas oficiais podem criar temporadas.',
+          flags: MessageFlags.Ephemeral,
+        });
         return;
       }
 
@@ -49,7 +58,10 @@ module.exports = {
       const inicio = inicioStr ? new Date(inicioStr) : new Date();
 
       if (Number.isNaN(inicio.getTime())) {
-        await interaction.reply({ content: 'Data inválida. Use o formato AAAA-MM-DD.', flags: MessageFlags.Ephemeral });
+        await interaction.reply({
+          content: 'Data inválida. Use o formato AAAA-MM-DD.',
+          flags: MessageFlags.Ephemeral,
+        });
         return;
       }
 

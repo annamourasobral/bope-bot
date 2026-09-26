@@ -15,7 +15,10 @@ module.exports = {
     const members = await db.listMembers();
 
     if (members.length === 0) {
-      await interaction.reply({ content: 'Nenhum membro registrado ainda.', flags: MessageFlags.Ephemeral });
+      await interaction.reply({
+        content: 'Nenhum membro registrado ainda.',
+        flags: MessageFlags.Ephemeral,
+      });
       return;
     }
 
