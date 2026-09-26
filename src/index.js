@@ -44,12 +44,24 @@ client.on('interactionCreate', async (interaction) => {
       content: 'Ocorreu um erro ao executar este comando.',
       flags: MessageFlags.Ephemeral,
     };
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp(payload);
-    } else {
-      await interaction.reply(payload);
+    try {
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp(payload);
+      } else {
+        await interaction.reply(payload);
+      }
+    } catch (replyError) {
+      console.error('Não foi possível avisar o usuário do erro:', replyError.message);
     }
   }
+});
+
+client.on('error', (error) => {
+  console.error('Erro no cliente do Discord:', error);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('Promise rejeitada sem tratamento:', reason);
 });
 
 async function main() {

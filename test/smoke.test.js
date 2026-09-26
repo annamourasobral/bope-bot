@@ -20,3 +20,8 @@ for (const file of fs.readdirSync(commandsPath).filter((f) => f.endsWith('.js'))
     command.data.toJSON();
   });
 }
+
+test('queda de conexão com o banco não derruba o bot', () => {
+  const db = require('../src/db');
+  assert.doesNotThrow(() => db.pool.emit('error', new Error('Connection terminated unexpectedly')));
+});

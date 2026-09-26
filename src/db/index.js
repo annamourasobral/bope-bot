@@ -6,6 +6,12 @@ const pool = new Pool({
   ssl: process.env.DATABASE_URL?.includes('localhost') ? false : { rejectUnauthorized: false },
 });
 
+// O Neon encerra conexões ociosas quando o banco hiberna. Sem este handler o
+// processo inteiro cai; com ele o pg descarta a conexão e abre outra na próxima query.
+pool.on('error', (err) => {
+  console.error('Conexão com o banco encerrada:', err.message);
+});
+
 const RANK_LIST_SQL = RANK_NAMES.map((n) => `'${n}'`).join(', ');
 
 const SCHEMA = `
