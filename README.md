@@ -79,3 +79,8 @@ src/
   index.js          bot principal
   deploy-commands.js registro dos slash commands na API do Discord
 ```
+
+## Termos e privacidade
+
+- [Termos de Serviço](TERMS.md)
+- [Política de Privacidade](PRIVACY.md)
