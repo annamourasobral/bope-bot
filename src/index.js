@@ -5,6 +5,13 @@ const { Client, GatewayIntentBits, Collection, MessageFlags, ActivityType } = re
 const db = require('./db');
 const { startHealthServer } = require('./health');
 
+const REQUIRED_ENV = ['DISCORD_TOKEN', 'DATABASE_URL'];
+const missingEnv = REQUIRED_ENV.filter((name) => !process.env[name]);
+if (missingEnv.length > 0) {
+  console.error(`Variáveis de ambiente faltando: ${missingEnv.join(', ')}`);
+  process.exit(1);
+}
+
 const client = new Client({
   intents: [GatewayIntentBits.Guilds],
   presence: {

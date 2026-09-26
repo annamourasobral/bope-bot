@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node src/index.js",
     "deploy-commands": "node src/deploy-commands.js",
-    "dev": "node --watch src/index.js"
+    "dev": "node --watch src/index.js",
+    "test": "node --test test/"
   },
   "engines": {
     "node": ">=18.0.0"
