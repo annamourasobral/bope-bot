@@ -100,7 +100,7 @@ function buildRegisterModal(member, mainNick) {
     .setStyle(TextInputStyle.Short)
     .setPlaceholder('+5511987654321')
     .setMaxLength(16)
-    .setRequired(false);
+    .setRequired(true);
   const origem = new StringSelectMenuBuilder()
     .setCustomId('origem')
     .setPlaceholder('Escolha BR ou PT')
@@ -132,8 +132,8 @@ function buildRegisterModal(member, mainNick) {
       .setTextInputComponent(nick),
     new LabelBuilder().setLabel('Servidor de origem').setStringSelectMenuComponent(origem),
     new LabelBuilder()
-      .setLabel('Telefone (opcional)')
-      .setDescription('Com DDI. Só você e os oficiais veem.')
+      .setLabel('Telefone')
+      .setDescription('Com DDI, ex: +5511987654321. Só você e os oficiais veem.')
       .setTextInputComponent(telefone),
   ];
 
@@ -297,8 +297,7 @@ async function handlePanelInteraction(interaction) {
       nome: fields.getTextInputValue('nome').trim(),
       nick: fields.getTextInputValue('nick').trim(),
       origem: fields.getStringSelectValues('origem')[0],
-      // Campo vazio no formulário apaga o telefone.
-      telefone: fields.getTextInputValue('telefone').trim() || null,
+      telefone: fields.getTextInputValue('telefone').trim(),
       smurfs: customId === IDS.registerForm ? fields.getTextInputValue('smurfs') : undefined,
     });
     return replyPrivately(interaction, { content: result.error || saveMemberMessage(result) });

@@ -108,11 +108,12 @@ async function onAccountsActivated(guild, discordId, accounts) {
   if (member) await syncRankRole(guild, discordId, member.patente);
 }
 
-// Cria ou atualiza o registro de uma pessoa. Campos `undefined` ficam como estão;
-// `telefone: null` apaga o telefone. `smurfs` é um texto com nicks separados por vírgula.
+// Cria ou atualiza o registro de uma pessoa. Campos `undefined` ficam como estão; o
+// telefone é obrigatório e não pode ser apagado. `smurfs` é um texto com nicks separados
+// por vírgula.
 // Retorna `{ error }` ou `{ member, accounts, created }`.
 async function saveMember(guild, discordId, { nome, nick, origem, telefone, smurfs }) {
-  if (telefone && !PHONE_REGEX.test(telefone)) {
+  if (telefone !== undefined && !PHONE_REGEX.test(telefone || '')) {
     return { error: 'Telefone inválido. Use o formato com DDI, ex: `+5511987654321`.' };
   }
   const smurfNicks = parseNicks(smurfs);
@@ -122,10 +123,10 @@ async function saveMember(guild, discordId, { nome, nick, origem, telefone, smur
   let existing = await db.getMember(discordId);
 
   if (!existing) {
-    if (!nick || !nome || !origem) {
+    if (!nick || !nome || !origem || !telefone) {
       return {
         error:
-          'Primeiro registro precisa de **nome**, **nick** e **origem** (telefone e smurf são opcionais). Ex: `/registrar nome:"Maria Silva" nick:MeuNick origem:BR`.',
+          'Primeiro registro precisa de **nome**, **nick**, **origem** e **telefone** (smurf é opcional). Ex: `/registrar nome:"Maria Silva" nick:MeuNick origem:BR telefone:+5511987654321`.',
       };
     }
     if (1 + smurfNicks.length > MAX_ACCOUNTS_PER_PERSON) {

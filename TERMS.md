@@ -8,7 +8,7 @@ Estes termos regem o uso do **BØPE Bot** ("bot"), um bot do Discord usado para 
 
 O bot permite que membros da guilda:
 
-- se registrem com nome, nick, origem (BR/PT) e, opcionalmente, telefone (`/registrar`);
+- se registrem com nome, nick, origem (BR/PT) e telefone (`/registrar` ou pelo painel);
 - registrem seus pontos semanais e consultem o ranking da temporada (`/pontos`, `/ranking`);
 - consultem o status próprio ou de outros membros e a lista de membros (`/status`, `/membros`).
 

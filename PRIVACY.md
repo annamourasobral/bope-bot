@@ -16,7 +16,7 @@ Esta política explica quais dados o **BØPE Bot** ("bot") guarda, para quê, qu
 | Nicks de outras contas (smurfs) | Informados por você no registro ou em "Adicionar conta" | Não |
 | Status de cada conta (ativa, lista de espera, inativa) e data da mudança | Automaticamente e pelos oficiais | — |
 | Origem (BR ou PT) | Informada em `/registrar` | Sim |
-| Telefone | Informado em `/registrar` | **Não, é opcional** |
+| Telefone (com DDI) | Informado por você em `/registrar` ou no painel | Sim |
 | Patente | Definida pelos oficiais (inicia como RECRUTA) | Sim |
 | Pontos semanais por temporada, de cada conta | Informados por você ou por um oficial | — |
 | Conclusão de temporada | Registrada automaticamente ao atingir o máximo de pontos | — |
@@ -26,7 +26,7 @@ O bot **não** lê o conteúdo das suas mensagens, não acessa suas mensagens pr
 
 ## 2. Para que usamos
 
-Os dados servem apenas para a organização interna da guilda: identificar os membros, controlar patentes e cargos no servidor, calcular pontos e ranking e permitir que a liderança entre em contato com os membros (telefone, quando informado).
+Os dados servem apenas para a organização interna da guilda: identificar os membros, controlar patentes e cargos no servidor, calcular pontos e ranking e permitir que a liderança entre em contato com os membros (telefone).
 
 A base legal é o consentimento que você dá ao registrar os seus dados e o interesse legítimo da guilda em organizar os seus membros. Os dados **não são vendidos, não são usados para publicidade e não são compartilhados** com ninguém fora da guilda, exceto os prestadores técnicos da secção 4.
 

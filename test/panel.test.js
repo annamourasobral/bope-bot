@@ -115,35 +115,43 @@ test('registro pelo formulário cria a principal e as smurfs digitadas', async (
   const i = fakeInteraction({
     customId: 'painel:registrar-form',
     modal: true,
-    text: { nome: ' Maria Silva ', nick: 'MeuNick', telefone: '', smurfs: 'Malvada' },
+    text: { nome: ' Maria Silva ', nick: 'MeuNick', telefone: '+5511987654321', smurfs: 'Malvada' },
     selects: { origem: ['BR'] },
   });
   await handlePanelInteraction(i);
   assert.deepStrictEqual(args, [
     '42',
-    { nome: 'Maria Silva', origem: 'BR', telefone: null },
+    { nome: 'Maria Silva', origem: 'BR', telefone: '+5511987654321' },
     ['MeuNick', 'Malvada'],
   ]);
   assert.match(i.calls.reply[0].content, /MeuNick\*\* ⭐: ✅ ativa/);
   assert.match(i.calls.reply[0].content, /Malvada\*\* \(smurf\): ✅ ativa/);
 });
 
-test('editar o registro não lê o campo de smurf e apaga o telefone vazio', async (t) => {
-  let updated;
-  stubDb(t, {
-    getMember: async () => MEMBER,
-    getAccounts: async () => [MAIN],
-    updateMember: async (id, fields) => (updated = fields) && { ...MEMBER, ...fields },
-  });
-  const i = fakeInteraction({
-    customId: 'painel:editar-form',
-    modal: true,
-    text: { nome: 'Maria Silva', nick: 'MeuNick', telefone: '' },
-    selects: { origem: ['PT'] },
-  });
-  await handlePanelInteraction(i);
-  assert.strictEqual(updated.telefone, null);
-  assert.match(i.calls.reply[0].content, /Dados atualizados/);
+test('editar o registro não lê o campo de smurf e não aceita telefone vazio', async (t) => {
+  const updateMember = t.mock.fn(async (id, fields) => ({ ...MEMBER, ...fields }));
+  stubDb(t, { getMember: async () => MEMBER, getAccounts: async () => [MAIN], updateMember });
+  const edit = (telefone) =>
+    fakeInteraction({
+      customId: 'painel:editar-form',
+      modal: true,
+      text: { nome: 'Maria Silva', nick: 'MeuNick', telefone },
+      selects: { origem: ['PT'] },
+    });
+
+  const empty = edit('');
+  await handlePanelInteraction(empty);
+  assert.match(empty.calls.reply[0].content, /Telefone inválido/);
+  assert.strictEqual(updateMember.mock.callCount(), 0);
+
+  const ok = edit('+351912345678');
+  await handlePanelInteraction(ok);
+  assert.match(ok.calls.reply[0].content, /Dados atualizados/);
+});
+
+test('telefone é obrigatório no formulário', () => {
+  const [, , , telefone] = buildRegisterModal(null).toJSON().components;
+  assert.strictEqual(telefone.component.required, true);
 });
 
 test('botão Pontos explica quando a conta ainda está na lista de espera', async (t) => {

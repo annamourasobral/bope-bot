@@ -29,7 +29,7 @@ São oficiais quem tem o cargo **CAPITÃO**, **MAJOR** ou **CORONEL** (IDs em [s
 
 ### Comandos
 
-- `/registrar` — registra/atualiza nome, nick da conta principal, origem (BR/PT), telefone (opcional) e smurfs (opcional, `smurf:Conta2, Conta3`). Só passe o que quiser mudar.
+- `/registrar` — registra/atualiza nome, nick da conta principal, origem (BR/PT), telefone (obrigatório, com DDI) e smurfs (opcional, `smurf:Conta2, Conta3`). Só passe o que quiser mudar.
 - `/status [membro]` — dados da pessoa e de cada conta (status e pontos por semana). Telefone só aparece para o próprio membro ou oficiais.
 - `/membros [pagina]` — lista as contas ativas, com as smurfs identificadas
 - `/pontos pontos [conta] [membro] [semana]` — registra pontos semanais. Com mais de uma conta ativa, informe `conta:`. Editar de outro membro é só para oficiais.
@@ -43,7 +43,7 @@ São oficiais quem tem o cargo **CAPITÃO**, **MAJOR** ou **CORONEL** (IDs em [s
 
 Para quem usa o Discord no celular, os membros podem fazer tudo pelo painel em vez dos comandos slash. Um oficial usa `/painel` uma vez num canal (ex: `#registro`) e fixa a mensagem. Botões:
 
-- **📝 Registrar / editar** — formulário com nome, nick, origem, telefone e, no primeiro registro, "Você tem smurf? Se sim, coloque o nick". Para quem já é membro vem preenchido (apagar o telefone remove-o).
+- **📝 Registrar / editar** — formulário com nome, nick, origem, telefone e, no primeiro registro, "Você tem smurf? Se sim, coloque o nick". Telefone é obrigatório. Para quem já é membro vem preenchido.
 - **➕ Adicionar conta** — registra uma smurf depois. Com o nick de uma conta própria desativada, ela volta (ativa ou na lista de espera, conforme o modo).
 - **🎯 Pontos** — semana (padrão: atual) e pontos; quem tem mais de uma conta ativa escolhe a conta no formulário
 - **📊 Meu status** — contas, status (e posição na lista de espera) e pontos da temporada

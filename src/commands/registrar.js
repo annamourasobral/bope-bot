@@ -22,7 +22,7 @@ module.exports = {
     .addStringOption((opt) =>
       opt
         .setName('telefone')
-        .setDescription('Telefone com DDI, opcional (ex: +5511987654321)')
+        .setDescription('Telefone com DDI (ex: +5511987654321). Obrigatório no primeiro registro')
         .setRequired(false)
     )
     .addStringOption((opt) =>

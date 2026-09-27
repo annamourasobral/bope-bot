@@ -52,9 +52,25 @@ test('registro recusa telefone inválido e nick repetido no mesmo envio', async 
     nome: 'Maria',
     nick: 'Athirst',
     origem: 'BR',
+    telefone: '+5511987654321',
     smurfs: 'athirst',
   });
   assert.match(dup.error, /informado duas vezes/);
+});
+
+test('primeiro registro sem telefone é recusado; editar sem mexer no telefone funciona', async (t) => {
+  stubDb(t, { getMember: async () => null });
+  const first = await saveMember(null, '42', { nome: 'Maria', nick: 'A', origem: 'BR' });
+  assert.match(first.error, /\*\*telefone\*\*/);
+
+  t.mock.restoreAll();
+  stubDb(t, {
+    getMember: async () => ({ ...MEMBER, telefone: '+5511987654321' }),
+    getAccounts: async () => [MAIN],
+    updateMember: async (id, f) => ({ ...MEMBER, ...f }),
+  });
+  const edit = await saveMember(null, '42', { origem: 'PT' });
+  assert.strictEqual(edit.error, undefined);
 });
 
 test('nick de outra pessoa vira mensagem com o dono', async (t) => {
@@ -64,7 +80,12 @@ test('nick de outra pessoa vira mensagem com o dono', async (t) => {
       throw new db.RuleError('nick_taken', { nick: 'Athirst', ownerId: '99' });
     },
   });
-  const result = await saveMember(null, '42', { nome: 'Maria', nick: 'Athirst', origem: 'BR' });
+  const result = await saveMember(null, '42', {
+    nome: 'Maria',
+    nick: 'Athirst',
+    origem: 'BR',
+    telefone: '+5511987654321',
+  });
   assert.match(result.error, /Athirst\*\* já está registrado por <@99>/);
 });
 
@@ -80,6 +101,7 @@ test('segundo envio do registro vira atualização em vez de erro', async (t) =>
     nome: 'Maria Silva',
     nick: 'MeuNick',
     origem: 'BR',
+    telefone: '+5511987654321',
   });
   assert.strictEqual(result.error, undefined);
   assert.strictEqual(result.created, false);
