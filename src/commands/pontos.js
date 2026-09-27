@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { isOfficer } = require('../permissions');
-const { savePoints, savePointsMessage } = require('../members');
+const { resolveActiveAccount, savePoints, savePointsMessage } = require('../members');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -13,6 +13,12 @@ module.exports = {
       opt
         .setName('membro')
         .setDescription('(Oficiais) atualizar outro membro. Padrão: você')
+        .setRequired(false)
+    )
+    .addStringOption((opt) =>
+      opt
+        .setName('conta')
+        .setDescription('Nick da conta, se tiver mais de uma (ex: sua smurf)')
         .setRequired(false)
     )
     .addIntegerOption((opt) =>
@@ -33,8 +39,17 @@ module.exports = {
       return;
     }
 
-    const result = await savePoints(
+    const target = await resolveActiveAccount(
       targetUser.id,
+      interaction.options.getString('conta')
+    );
+    if (target.error) {
+      await interaction.reply({ content: target.error, flags: MessageFlags.Ephemeral });
+      return;
+    }
+
+    const result = await savePoints(
+      target.account,
       interaction.options.getInteger('pontos'),
       interaction.options.getInteger('semana'),
       interaction.user.id

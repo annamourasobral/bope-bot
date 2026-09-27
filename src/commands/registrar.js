@@ -5,7 +5,7 @@ const { saveMember, saveMemberMessage } = require('../members');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('registrar')
-    .setDescription('Registra ou edita seu nome, nick, origem e telefone na guilda')
+    .setDescription('Registra ou edita seu nome, nick, origem, telefone e smurfs na guilda')
     .addStringOption((opt) =>
       opt.setName('nome').setDescription('Seu nome real').setRequired(false)
     )
@@ -23,6 +23,12 @@ module.exports = {
       opt
         .setName('telefone')
         .setDescription('Telefone com DDI, opcional (ex: +5511987654321)')
+        .setRequired(false)
+    )
+    .addStringOption((opt) =>
+      opt
+        .setName('smurf')
+        .setDescription('Nick da(s) sua(s) smurf(s), separados por vírgula. Opcional')
         .setRequired(false)
     )
     .addUserOption((opt) =>
@@ -48,6 +54,7 @@ module.exports = {
       nick: interaction.options.getString('nick') ?? undefined,
       origem: interaction.options.getString('origem') ?? undefined,
       telefone: interaction.options.getString('telefone') ?? undefined,
+      smurfs: interaction.options.getString('smurf') ?? undefined,
     });
 
     await interaction.reply({

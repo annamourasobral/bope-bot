@@ -1,6 +1,6 @@
 # Política de Privacidade — BØPE Bot
 
-_Última atualização: 26 de setembro de 2026_
+_Última atualização: 27 de setembro de 2026_
 
 Esta política explica quais dados o **BØPE Bot** ("bot") guarda, para quê, quem pode vê-los e como pedir que sejam corrigidos ou apagados. Ela vale para membros do Brasil e de Portugal e busca seguir a LGPD (Lei nº 13.709/2018) e o RGPD/GDPR (Regulamento UE 2016/679).
 
@@ -12,11 +12,13 @@ Esta política explica quais dados o **BØPE Bot** ("bot") guarda, para quê, qu
 |---|---|---|
 | ID de usuário do Discord | Automaticamente, quando você usa um comando ou é registrado por um oficial | Sim |
 | Nome | Informado por você (ou por um oficial) em `/registrar` | Sim |
-| Nick no Wild Rift | Informado em `/registrar` | Sim |
+| Nick no Wild Rift (conta principal) | Informado em `/registrar` ou no painel | Sim |
+| Nicks de outras contas (smurfs) | Informados por você no registro ou em "Adicionar conta" | Não |
+| Status de cada conta (ativa, lista de espera, inativa) e data da mudança | Automaticamente e pelos oficiais | — |
 | Origem (BR ou PT) | Informada em `/registrar` | Sim |
 | Telefone | Informado em `/registrar` | **Não, é opcional** |
 | Patente | Definida pelos oficiais (inicia como RECRUTA) | Sim |
-| Pontos semanais por temporada | Informados por você ou por um oficial em `/pontos` | — |
+| Pontos semanais por temporada, de cada conta | Informados por você ou por um oficial | — |
 | Conclusão de temporada | Registrada automaticamente ao atingir o máximo de pontos | — |
 | Datas de criação e alteração, e quem alterou os pontos | Automaticamente | — |
 
@@ -30,9 +32,9 @@ A base legal é o consentimento que você dá ao registrar os seus dados e o int
 
 ## 3. Quem pode ver
 
-- **Qualquer pessoa no servidor** pode ver, pelos comandos `/membros`, `/status` e `/ranking`: nome, nick, origem, patente, pontos e se o membro está ativo.
+- **Qualquer pessoa no servidor** pode ver, pelos comandos `/membros`, `/status` e `/ranking`: nome, nicks (inclusive das smurfs), origem, patente, pontos e o status de cada conta.
 - **O telefone** só aparece para você mesmo e para os oficiais, em respostas visíveis apenas para quem executou o comando.
-- **Oficiais** podem ver e editar os dados de todos os membros.
+- **Oficiais** podem ver e editar os dados de todos os membros, ver a lista de espera e exportar uma planilha com os dados de todos (inclusive telefones) para a organização da guilda. A planilha não deve ser compartilhada fora da liderança.
 
 Se não quiser que o seu nome real fique visível aos outros membros, use um nome ou apelido no campo "nome".
 

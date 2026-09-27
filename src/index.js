@@ -5,6 +5,7 @@ const { Client, GatewayIntentBits, Collection, MessageFlags } = require('discord
 const db = require('./db');
 const { startHealthServer } = require('./health');
 const { isPanelInteraction, handlePanelInteraction } = require('./panel');
+const { isStaffInteraction, handleStaffInteraction } = require('./staff-panel');
 
 const REQUIRED_ENV = ['DISCORD_TOKEN', 'DATABASE_URL'];
 const missingEnv = REQUIRED_ENV.filter((name) => !process.env[name]);
@@ -41,6 +42,9 @@ client.on('interactionCreate', async (interaction) => {
     name = `/${interaction.commandName}`;
   } else if (isPanelInteraction(interaction)) {
     run = () => handlePanelInteraction(interaction);
+    name = interaction.customId;
+  } else if (isStaffInteraction(interaction)) {
+    run = () => handleStaffInteraction(interaction);
     name = interaction.customId;
   } else if (interaction.isButton()) {
     // Botões de um comando usam o nome dele como prefixo, ex: "remover:apagar:123".

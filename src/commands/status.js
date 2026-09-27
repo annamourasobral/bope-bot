@@ -24,14 +24,6 @@ module.exports = {
     }
 
     const season = await db.getActiveSeason();
-    if (!season) {
-      await interaction.reply({
-        content: 'Nenhuma temporada ativa configurada ainda.',
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-
     const canSeePhone = targetUser.id === interaction.user.id || isOfficer(interaction);
     const embed = await buildStatusEmbed(member, season, canSeePhone);
 

@@ -15,8 +15,12 @@ const {
 } = require('discord.js');
 const db = require('./db');
 const {
+  NICK_MAX,
   saveMember,
   saveMemberMessage,
+  addMemberAccount,
+  addAccountMessage,
+  resolveActiveAccount,
   savePoints,
   savePointsMessage,
   buildStatusEmbed,
@@ -24,9 +28,12 @@ const {
 
 const IDS = {
   register: 'painel:registrar',
+  addAccount: 'painel:conta',
   points: 'painel:pontos',
   status: 'painel:status',
   registerForm: 'painel:registrar-form',
+  editForm: 'painel:editar-form',
+  addAccountForm: 'painel:conta-form',
   pointsForm: 'painel:pontos-form',
 };
 
@@ -41,9 +48,10 @@ function buildPanelMessage() {
       [
         'Toque num botão para começar. Só você vê as respostas.',
         '',
-        '📝 **Registrar / editar**: nome, nick, origem e telefone',
+        '📝 **Registrar / editar**: nome, nick, origem, telefone (e smurf no primeiro registro)',
+        '➕ **Adicionar conta**: registrar uma smurf depois',
         '🎯 **Pontos**: registrar os pontos da semana',
-        '📊 **Meu status**: seus dados e pontos da temporada',
+        '📊 **Meu status**: suas contas e pontos da temporada',
       ].join('\n')
     )
     .setColor(0x2b2d31);
@@ -54,6 +62,11 @@ function buildPanelMessage() {
       .setLabel('Registrar / editar')
       .setEmoji('📝')
       .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(IDS.addAccount)
+      .setLabel('Adicionar conta')
+      .setEmoji('➕')
+      .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId(IDS.points)
       .setLabel('Pontos')
@@ -69,8 +82,9 @@ function buildPanelMessage() {
   return { embeds: [embed], components: [row] };
 }
 
-// Formulário de registro, já preenchido com os dados atuais quando o membro existe.
-function buildRegisterModal(member) {
+// Formulário de registro. Para quem já é membro vem preenchido e sem o campo de smurf
+// (smurfs novas entram pelo botão Adicionar conta, para ninguém apagar uma sem querer).
+function buildRegisterModal(member, mainNick) {
   const nome = new TextInputBuilder()
     .setCustomId('nome')
     .setStyle(TextInputStyle.Short)
@@ -79,7 +93,7 @@ function buildRegisterModal(member) {
   const nick = new TextInputBuilder()
     .setCustomId('nick')
     .setStyle(TextInputStyle.Short)
-    .setMaxLength(32)
+    .setMaxLength(NICK_MAX)
     .setRequired(true);
   const telefone = new TextInputBuilder()
     .setCustomId('telefone')
@@ -104,31 +118,67 @@ function buildRegisterModal(member) {
 
   if (member) {
     nome.setValue(member.nome);
-    nick.setValue(member.nick);
+    nick.setValue(mainNick || member.nick);
     if (member.telefone) telefone.setValue(member.telefone);
   }
 
+  const labels = [
+    new LabelBuilder()
+      .setLabel('Nome')
+      .setDescription('Aparece para os membros da guilda')
+      .setTextInputComponent(nome),
+    new LabelBuilder()
+      .setLabel(member ? 'Nick da conta principal' : 'Nick no Wild Rift')
+      .setTextInputComponent(nick),
+    new LabelBuilder().setLabel('Servidor de origem').setStringSelectMenuComponent(origem),
+    new LabelBuilder()
+      .setLabel('Telefone (opcional)')
+      .setDescription('Com DDI. Só você e os oficiais veem.')
+      .setTextInputComponent(telefone),
+  ];
+
+  if (!member) {
+    labels.push(
+      new LabelBuilder()
+        .setLabel('Você tem smurf? Se sim, coloque o nick')
+        .setDescription('Opcional. Mais de uma? Separe por vírgula: Conta2, Conta3')
+        .setTextInputComponent(
+          new TextInputBuilder()
+            .setCustomId('smurfs')
+            .setStyle(TextInputStyle.Short)
+            .setMaxLength(150)
+            .setRequired(false)
+        )
+    );
+  }
+
   return new ModalBuilder()
-    .setCustomId(IDS.registerForm)
+    .setCustomId(member ? IDS.editForm : IDS.registerForm)
     .setTitle(member ? 'Editar registro' : 'Registro na BØPE')
+    .addLabelComponents(...labels);
+}
+
+function buildAddAccountModal() {
+  return new ModalBuilder()
+    .setCustomId(IDS.addAccountForm)
+    .setTitle('Adicionar conta (smurf)')
     .addLabelComponents(
       new LabelBuilder()
-        .setLabel('Nome')
-        .setDescription('Aparece para os membros da guilda')
-        .setTextInputComponent(nome),
-      new LabelBuilder().setLabel('Nick no Wild Rift').setTextInputComponent(nick),
-      new LabelBuilder().setLabel('Servidor de origem').setStringSelectMenuComponent(origem),
-      new LabelBuilder()
-        .setLabel('Telefone (opcional)')
-        .setDescription('Com DDI. Só você e os oficiais veem.')
-        .setTextInputComponent(telefone)
+        .setLabel('Nick da conta no Wild Rift')
+        .setDescription('Conta desativada? Coloque o mesmo nick para ela voltar.')
+        .setTextInputComponent(
+          new TextInputBuilder()
+            .setCustomId('nick')
+            .setStyle(TextInputStyle.Short)
+            .setMaxLength(NICK_MAX)
+            .setRequired(true)
+        )
     );
 }
 
-function buildPointsModal(season) {
+function weekSelect(season) {
   const currentWeek = db.currentWeekNumber(season);
-
-  const week = new StringSelectMenuBuilder()
+  return new StringSelectMenuBuilder()
     .setCustomId('semana')
     .setRequired(true)
     .addOptions(
@@ -139,23 +189,55 @@ function buildPointsModal(season) {
           .setDefault(i + 1 === currentWeek)
       )
     );
-  const points = new TextInputBuilder()
+}
+
+function pointsInput() {
+  return new TextInputBuilder()
     .setCustomId('pontos')
     .setStyle(TextInputStyle.Short)
     .setPlaceholder(`0 a ${db.WEEK_MAX}`)
     .setMaxLength(3)
     .setRequired(true);
+}
+
+// Com uma conta ativa, o id dela vai no custom id; com várias, o formulário pergunta qual.
+function buildPointsModal(season, accounts) {
+  const labels = [];
+  if (accounts.length > 1) {
+    labels.push(
+      new LabelBuilder().setLabel('Conta').setStringSelectMenuComponent(
+        new StringSelectMenuBuilder()
+          .setCustomId('conta')
+          .setRequired(true)
+          .addOptions(
+            accounts.map((a) =>
+              new StringSelectMenuOptionBuilder()
+                .setLabel(`${a.nick}${a.is_main ? ' (principal)' : ' (smurf)'}`)
+                .setValue(String(a.id))
+                .setDefault(a.is_main)
+            )
+          )
+      )
+    );
+  }
+  labels.push(
+    new LabelBuilder().setLabel('Semana').setStringSelectMenuComponent(weekSelect(season)),
+    new LabelBuilder()
+      .setLabel('Pontos da semana')
+      .setDescription(`Número de 0 a ${db.WEEK_MAX}`)
+      .setTextInputComponent(pointsInput())
+  );
 
   return new ModalBuilder()
-    .setCustomId(IDS.pointsForm)
+    .setCustomId(accounts.length > 1 ? IDS.pointsForm : `${IDS.pointsForm}:${accounts[0].id}`)
     .setTitle(`Pontos: ${season.name}`.slice(0, 45))
-    .addLabelComponents(
-      new LabelBuilder().setLabel('Semana').setStringSelectMenuComponent(week),
-      new LabelBuilder()
-        .setLabel('Pontos da semana')
-        .setDescription(`Número de 0 a ${db.WEEK_MAX}`)
-        .setTextInputComponent(points)
-    );
+    .addLabelComponents(...labels);
+}
+
+// Lê o campo de pontos do formulário. Retorna o número ou null se não for válido.
+function readPoints(fields) {
+  const raw = fields.getTextInputValue('pontos').trim();
+  return /^\d+$/.test(raw) ? Number(raw) : null;
 }
 
 function isPanelInteraction(interaction) {
@@ -171,63 +253,95 @@ function replyPrivately(interaction, payload) {
 
 async function handlePanelInteraction(interaction) {
   const userId = interaction.user.id;
+  const { customId } = interaction;
 
-  switch (interaction.customId) {
-    case IDS.register: {
-      const member = await db.getMember(userId);
-      await interaction.showModal(buildRegisterModal(member));
-      return;
+  if (customId === IDS.register) {
+    const member = await db.getMember(userId);
+    const main = member && (await db.getAccounts(userId)).find((a) => a.is_main);
+    await interaction.showModal(buildRegisterModal(member, main?.nick));
+    return;
+  }
+
+  if (customId === IDS.addAccount) {
+    const member = await db.getMember(userId);
+    if (!member) return replyPrivately(interaction, { content: NOT_REGISTERED });
+    await interaction.showModal(buildAddAccountModal());
+    return;
+  }
+
+  if (customId === IDS.points) {
+    const member = await db.getMember(userId);
+    if (!member) return replyPrivately(interaction, { content: NOT_REGISTERED });
+    const active = (await db.getAccounts(userId)).filter((a) => a.status === 'ativo');
+    if (active.length === 0) {
+      const { error } = await resolveActiveAccount(userId);
+      return replyPrivately(interaction, { content: error });
     }
+    const season = await db.getActiveSeason();
+    if (!season) return replyPrivately(interaction, { content: NO_SEASON });
+    await interaction.showModal(buildPointsModal(season, active));
+    return;
+  }
 
-    case IDS.points: {
-      const member = await db.getMember(userId);
-      if (!member) return replyPrivately(interaction, { content: NOT_REGISTERED });
-      const season = await db.getActiveSeason();
-      if (!season) return replyPrivately(interaction, { content: NO_SEASON });
-      await interaction.showModal(buildPointsModal(season));
-      return;
-    }
+  if (customId === IDS.status) {
+    const member = await db.getMember(userId);
+    if (!member) return replyPrivately(interaction, { content: NOT_REGISTERED });
+    const season = await db.getActiveSeason();
+    const embed = await buildStatusEmbed(member, season, true);
+    return replyPrivately(interaction, { embeds: [embed] });
+  }
 
-    case IDS.status: {
-      const member = await db.getMember(userId);
-      if (!member) return replyPrivately(interaction, { content: NOT_REGISTERED });
-      const season = await db.getActiveSeason();
-      if (!season) return replyPrivately(interaction, { content: NO_SEASON });
-      const embed = await buildStatusEmbed(member, season, true);
-      return replyPrivately(interaction, { embeds: [embed] });
-    }
+  if (customId === IDS.registerForm || customId === IDS.editForm) {
+    const { fields } = interaction;
+    const result = await saveMember(interaction.guild, userId, {
+      nome: fields.getTextInputValue('nome').trim(),
+      nick: fields.getTextInputValue('nick').trim(),
+      origem: fields.getStringSelectValues('origem')[0],
+      // Campo vazio no formulário apaga o telefone.
+      telefone: fields.getTextInputValue('telefone').trim() || null,
+      smurfs: customId === IDS.registerForm ? fields.getTextInputValue('smurfs') : undefined,
+    });
+    return replyPrivately(interaction, { content: result.error || saveMemberMessage(result) });
+  }
 
-    case IDS.registerForm: {
-      const { fields } = interaction;
-      const result = await saveMember(interaction.guild, userId, {
-        nome: fields.getTextInputValue('nome').trim(),
-        nick: fields.getTextInputValue('nick').trim(),
-        origem: fields.getStringSelectValues('origem')[0],
-        // Campo vazio no formulário apaga o telefone.
-        telefone: fields.getTextInputValue('telefone').trim() || null,
+  if (customId === IDS.addAccountForm) {
+    const nick = interaction.fields.getTextInputValue('nick').trim();
+    const result = await addMemberAccount(interaction.guild, userId, nick);
+    return replyPrivately(interaction, { content: result.error || addAccountMessage(result) });
+  }
+
+  if (customId === IDS.pointsForm || customId.startsWith(`${IDS.pointsForm}:`)) {
+    const { fields } = interaction;
+    const points = readPoints(fields);
+    if (points === null) {
+      return replyPrivately(interaction, {
+        content: `Digite só números, de 0 a ${db.WEEK_MAX}.`,
       });
-      return replyPrivately(interaction, { content: result.error || saveMemberMessage(result) });
     }
-
-    case IDS.pointsForm: {
-      const { fields } = interaction;
-      const raw = fields.getTextInputValue('pontos').trim();
-      if (!/^\d+$/.test(raw)) {
-        return replyPrivately(interaction, {
-          content: `Digite só números, de 0 a ${db.WEEK_MAX}.`,
-        });
-      }
-      const week = Number(fields.getStringSelectValues('semana')[0]);
-      const result = await savePoints(userId, Number(raw), week, userId);
-      return replyPrivately(interaction, { content: result.error || savePointsMessage(result) });
+    const accountId = Number(
+      customId === IDS.pointsForm
+        ? fields.getStringSelectValues('conta')[0]
+        : customId.slice(IDS.pointsForm.length + 1)
+    );
+    const account = await db.getAccount(accountId);
+    // O id vem do formulário: confere se a conta é mesmo de quem enviou.
+    if (!account || account.member_id !== userId) {
+      return replyPrivately(interaction, { content: 'Conta não encontrada.' });
     }
+    const week = Number(fields.getStringSelectValues('semana')[0]);
+    const result = await savePoints(account, points, week, userId);
+    return replyPrivately(interaction, { content: result.error || savePointsMessage(result) });
   }
 }
 
 module.exports = {
   buildPanelMessage,
   buildRegisterModal,
+  buildAddAccountModal,
   buildPointsModal,
+  weekSelect,
+  pointsInput,
+  readPoints,
   isPanelInteraction,
   handlePanelInteraction,
 };

@@ -4,6 +4,7 @@ const db = require('../src/db');
 const {
   buildPanelMessage,
   buildRegisterModal,
+  buildAddAccountModal,
   buildPointsModal,
   isPanelInteraction,
   handlePanelInteraction,
@@ -17,8 +18,9 @@ const MEMBER = {
   origem: 'PT',
   telefone: '+351912345678',
   patente: 'RECRUTA',
-  active: true,
 };
+const MAIN = { id: 1, member_id: '42', nick: 'MeuNick', is_main: true, status: 'ativo' };
+const SMURF = { id: 2, member_id: '42', nick: 'Malvada', is_main: false, status: 'ativo' };
 
 // Substitui funções do banco durante um teste e restaura depois.
 function stubDb(t, stubs) {
@@ -38,7 +40,10 @@ function fakeInteraction({ customId, text = {}, selects = {}, modal = false }) {
     isButton: () => !modal,
     isModalSubmit: () => modal,
     fields: {
-      getTextInputValue: (id) => text[id] ?? '',
+      getTextInputValue: (id) => {
+        if (!(id in text)) throw new Error(`campo ${id} não existe no formulário`);
+        return text[id];
+      },
       getStringSelectValues: (id) => selects[id] ?? [],
     },
     reply: async (payload) => calls.reply.push(payload),
@@ -46,107 +51,155 @@ function fakeInteraction({ customId, text = {}, selects = {}, modal = false }) {
   };
 }
 
+const fieldIds = (modal) => modal.components.map((c) => c.component.custom_id);
+
 test('painel e formulários passam na validação do Discord', () => {
   const panel = buildPanelMessage();
   panel.embeds.forEach((e) => e.toJSON());
   panel.components.forEach((c) => c.toJSON());
   buildRegisterModal(null).toJSON();
-  buildRegisterModal(MEMBER).toJSON();
-  buildPointsModal(SEASON).toJSON();
-  buildPointsModal({ ...SEASON, name: 'Uma temporada com um nome muito, muito comprido' }).toJSON();
+  buildRegisterModal(MEMBER, 'MeuNick').toJSON();
+  buildAddAccountModal().toJSON();
+  buildPointsModal(SEASON, [MAIN]).toJSON();
+  buildPointsModal(SEASON, [MAIN, SMURF]).toJSON();
+  buildPointsModal({ ...SEASON, name: 'Uma temporada com um nome muito, muito comprido' }, [
+    MAIN,
+  ]).toJSON();
 });
 
-test('formulário de registro vem preenchido para quem já é membro', () => {
-  const [nome, , origem, telefone] = buildRegisterModal(MEMBER).toJSON().components;
-  assert.strictEqual(nome.component.value, 'Maria Silva');
-  assert.strictEqual(telefone.component.value, '+351912345678');
+test('primeiro registro pergunta da smurf; edição não', () => {
+  assert.deepStrictEqual(fieldIds(buildRegisterModal(null).toJSON()), [
+    'nome',
+    'nick',
+    'origem',
+    'telefone',
+    'smurfs',
+  ]);
+  const edit = buildRegisterModal(MEMBER, 'MeuNick').toJSON();
+  assert.deepStrictEqual(fieldIds(edit), ['nome', 'nick', 'origem', 'telefone']);
+  assert.strictEqual(edit.components[1].component.value, 'MeuNick');
+  assert.strictEqual(edit.components[3].component.value, '+351912345678');
+});
+
+test('formulário de pontos só pergunta a conta para quem tem mais de uma', () => {
+  const single = buildPointsModal(SEASON, [MAIN]).toJSON();
+  assert.strictEqual(single.custom_id, 'painel:pontos-form:1');
+  assert.deepStrictEqual(fieldIds(single), ['semana', 'pontos']);
+
+  const multi = buildPointsModal(SEASON, [MAIN, SMURF]).toJSON();
+  assert.strictEqual(multi.custom_id, 'painel:pontos-form');
+  assert.deepStrictEqual(fieldIds(multi), ['conta', 'semana', 'pontos']);
+  const defaults = multi.components[0].component.options.filter((o) => o.default);
   assert.deepStrictEqual(
-    origem.component.options.filter((o) => o.default).map((o) => o.value),
-    ['PT']
+    defaults.map((o) => o.value),
+    ['1'],
+    'conta principal vem selecionada'
   );
 });
 
 test('só reconhece interações do painel', () => {
   assert.ok(isPanelInteraction(fakeInteraction({ customId: 'painel:status' })));
-  assert.ok(!isPanelInteraction(fakeInteraction({ customId: 'outro-bot:x' })));
+  assert.ok(!isPanelInteraction(fakeInteraction({ customId: 'staff:membros' })));
 });
 
-test('botão Pontos pede registro de quem não é membro', async (t) => {
-  stubDb(t, { getMember: async () => null });
-  const i = fakeInteraction({ customId: 'painel:pontos' });
-  await handlePanelInteraction(i);
-  assert.strictEqual(i.calls.showModal.length, 0);
-  assert.match(i.calls.reply[0].content, /ainda não está registrado/);
-});
-
-test('formulário de registro cria o membro com os dados digitados', async (t) => {
-  let created;
+test('registro pelo formulário cria a principal e as smurfs digitadas', async (t) => {
+  let args;
+  let getMemberCalls = 0;
   stubDb(t, {
-    getMember: async () => null,
-    createMember: async (id, data) => {
-      created = { discord_id: id, ...data };
-      return { ...created, inserted: true };
+    getMember: async () => (getMemberCalls++ === 0 ? null : MEMBER),
+    registerMember: async (...a) => {
+      args = a;
+      return { member: MEMBER, accounts: [MAIN, SMURF] };
     },
   });
   const i = fakeInteraction({
     customId: 'painel:registrar-form',
     modal: true,
-    text: { nome: ' Maria Silva ', nick: 'MeuNick', telefone: '' },
+    text: { nome: ' Maria Silva ', nick: 'MeuNick', telefone: '', smurfs: 'Malvada' },
     selects: { origem: ['BR'] },
   });
   await handlePanelInteraction(i);
-  assert.deepStrictEqual(created, {
-    discord_id: '42',
-    nome: 'Maria Silva',
-    nick: 'MeuNick',
-    origem: 'BR',
-    telefone: null,
-  });
-  assert.match(i.calls.reply[0].content, /Registrado/);
+  assert.deepStrictEqual(args, [
+    '42',
+    { nome: 'Maria Silva', origem: 'BR', telefone: null },
+    ['MeuNick', 'Malvada'],
+  ]);
+  assert.match(i.calls.reply[0].content, /MeuNick\*\* ⭐: ✅ ativa/);
+  assert.match(i.calls.reply[0].content, /Malvada\*\* \(smurf\): ✅ ativa/);
 });
 
-test('apagar o telefone no formulário remove o telefone', async (t) => {
+test('editar o registro não lê o campo de smurf e apaga o telefone vazio', async (t) => {
   let updated;
   stubDb(t, {
     getMember: async () => MEMBER,
+    getAccounts: async () => [MAIN],
     updateMember: async (id, fields) => (updated = fields) && { ...MEMBER, ...fields },
   });
   const i = fakeInteraction({
-    customId: 'painel:registrar-form',
+    customId: 'painel:editar-form',
     modal: true,
     text: { nome: 'Maria Silva', nick: 'MeuNick', telefone: '' },
     selects: { origem: ['PT'] },
   });
   await handlePanelInteraction(i);
   assert.strictEqual(updated.telefone, null);
+  assert.match(i.calls.reply[0].content, /Dados atualizados/);
 });
 
-test('formulário de pontos rejeita texto e aceita números', async (t) => {
-  let saved;
+test('botão Pontos explica quando a conta ainda está na lista de espera', async (t) => {
   stubDb(t, {
     getMember: async () => MEMBER,
+    getAccounts: async () => [{ ...MAIN, status: 'espera' }],
+  });
+  const i = fakeInteraction({ customId: 'painel:pontos' });
+  await handlePanelInteraction(i);
+  assert.strictEqual(i.calls.showModal.length, 0);
+  assert.match(i.calls.reply[0].content, /lista de espera/);
+});
+
+test('formulário de pontos rejeita texto e conta de outra pessoa', async (t) => {
+  const setWeeklyPoints = t.mock.fn(async () => {});
+  stubDb(t, {
+    getAccount: async (id) => (id === 2 ? { ...SMURF, member_id: '99' } : MAIN),
     getActiveSeason: async () => SEASON,
-    setWeeklyPoints: async (...args) => (saved = args),
+    setWeeklyPoints,
     getSeasonTotal: async () => 500,
   });
 
   const bad = fakeInteraction({
-    customId: 'painel:pontos-form',
+    customId: 'painel:pontos-form:1',
     modal: true,
     text: { pontos: 'abc' },
     selects: { semana: ['2'] },
   });
   await handlePanelInteraction(bad);
-  assert.strictEqual(saved, undefined);
   assert.match(bad.calls.reply[0].content, /só números/);
 
-  const good = fakeInteraction({
+  const other = fakeInteraction({
     customId: 'painel:pontos-form',
+    modal: true,
+    text: { pontos: '100' },
+    selects: { conta: ['2'], semana: ['2'] },
+  });
+  await handlePanelInteraction(other);
+  assert.match(other.calls.reply[0].content, /Conta não encontrada/);
+  assert.strictEqual(setWeeklyPoints.mock.callCount(), 0);
+
+  const good = fakeInteraction({
+    customId: 'painel:pontos-form:1',
     modal: true,
     text: { pontos: '500' },
     selects: { semana: ['2'] },
   });
   await handlePanelInteraction(good);
-  assert.deepStrictEqual(saved, ['42', 1, 2, 500, '42']);
-  assert.match(good.calls.reply[0].content, /semana 2 atualizados para \*\*500\*\*/);
+  assert.deepStrictEqual(setWeeklyPoints.mock.calls[0].arguments, [1, 1, 2, 500, '42']);
+  assert.match(good.calls.reply[0].content, /MeuNick\*\* na semana 2 atualizados para \*\*500\*\*/);
+});
+
+test('Adicionar conta exige registro antes', async (t) => {
+  stubDb(t, { getMember: async () => null });
+  const i = fakeInteraction({ customId: 'painel:conta' });
+  await handlePanelInteraction(i);
+  assert.strictEqual(i.calls.showModal.length, 0);
+  assert.match(i.calls.reply[0].content, /ainda não está registrado/);
 });
