@@ -1,6 +1,7 @@
-const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const db = require('../db');
 const { isOfficer } = require('../permissions');
+const { buildStatusEmbed } = require('../members');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -31,37 +32,8 @@ module.exports = {
       return;
     }
 
-    const weekly = await db.getWeeklyPoints(member.discord_id, season.id);
-    const total = await db.getSeasonTotal(member.discord_id, season.id);
-    const currentWeek = db.currentWeekNumber(season);
-
-    const weeksLine = Array.from({ length: db.WEEKS_PER_SEASON }, (_, i) => {
-      const w = weekly.find((r) => r.week_number === i + 1);
-      return `Semana ${i + 1}: ${w ? w.points : 0}/${db.WEEK_MAX}`;
-    }).join('\n');
-
     const canSeePhone = targetUser.id === interaction.user.id || isOfficer(interaction);
-
-    const embed = new EmbedBuilder()
-      .setTitle(`Status de ${member.nick}`)
-      .setColor(0x2b2d31)
-      .addFields(
-        { name: 'Nome', value: member.nome, inline: true },
-        { name: 'Origem', value: member.origem, inline: true },
-        { name: 'Patente', value: member.patente, inline: true },
-        { name: 'Status', value: member.active ? 'Ativo' : 'Inativo', inline: true },
-        {
-          name: 'Temporada',
-          value: `${season.name} (semana atual: ${currentWeek})`,
-          inline: false,
-        },
-        { name: 'Pontos por semana', value: weeksLine, inline: false },
-        { name: 'Total na temporada', value: `${total}/${db.SEASON_TOTAL_MAX}`, inline: false }
-      );
-
-    if (canSeePhone && member.telefone) {
-      embed.addFields({ name: 'Telefone', value: member.telefone, inline: false });
-    }
+    const embed = await buildStatusEmbed(member, season, canSeePhone);
 
     await interaction.reply({
       embeds: [embed],

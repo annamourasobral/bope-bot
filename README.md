@@ -11,6 +11,17 @@ Bot Discord para gestão da guilda **BØPE** (Wild Rift).
 - `/patente membro patente` — (oficiais) promove/rebaixa um membro, atualizando também o cargo no Discord
 - `/ranking` — mostra quem bateu o máximo (2400 pts) primeiro, e a classificação geral
 - `/temporada nova|atual` — inicia uma nova temporada ou mostra a atual (oficiais)
+- `/painel` — (oficiais) publica no canal atual o painel com botões para os membros
+
+### Painel do membro
+
+Para quem usa o Discord no celular, os membros podem fazer tudo pelo painel em vez dos comandos slash. Um oficial usa `/painel` uma vez num canal (ex: `#registro`) e fixa a mensagem. Ela tem três botões:
+
+- **📝 Registrar / editar** — abre um formulário com nome, nick, origem e telefone (já preenchido para quem é membro; apagar o telefone remove-o)
+- **🎯 Pontos** — abre um formulário com a semana (padrão: atual) e os pontos
+- **📊 Meu status** — mostra os dados e pontos da temporada
+
+As respostas só aparecem para quem tocou no botão. O painel continua funcionando após reinícios do bot; para atualizá-lo, apague a mensagem antiga e use `/painel` de novo.
 
 Regras: máximo **600 pontos/semana**, **4 semanas por temporada**, total máximo **2400 pontos**.
 

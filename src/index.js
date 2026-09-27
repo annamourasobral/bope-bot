@@ -1,9 +1,10 @@
 require('dotenv').config();
 const fs = require('node:fs');
 const path = require('node:path');
-const { Client, GatewayIntentBits, Collection, MessageFlags, ActivityType } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, MessageFlags } = require('discord.js');
 const db = require('./db');
 const { startHealthServer } = require('./health');
+const { isPanelInteraction, handlePanelInteraction } = require('./panel');
 
 const REQUIRED_ENV = ['DISCORD_TOKEN', 'DATABASE_URL'];
 const missingEnv = REQUIRED_ENV.filter((name) => !process.env[name]);
@@ -31,15 +32,24 @@ client.once('clientReady', () => {
 });
 
 client.on('interactionCreate', async (interaction) => {
-  if (!interaction.isChatInputCommand()) return;
-
-  const command = client.commands.get(interaction.commandName);
-  if (!command) return;
+  let run;
+  let name;
+  if (interaction.isChatInputCommand()) {
+    const command = client.commands.get(interaction.commandName);
+    if (!command) return;
+    run = () => command.execute(interaction);
+    name = `/${interaction.commandName}`;
+  } else if (isPanelInteraction(interaction)) {
+    run = () => handlePanelInteraction(interaction);
+    name = interaction.customId;
+  } else {
+    return;
+  }
 
   try {
-    await command.execute(interaction);
+    await run();
   } catch (error) {
-    console.error(`Erro ao executar /${interaction.commandName}:`, error);
+    console.error(`Erro ao executar ${name}:`, error);
     const payload = {
       content: 'Ocorreu um erro ao executar este comando.',
       flags: MessageFlags.Ephemeral,
