@@ -12,6 +12,7 @@ Bot Discord para gestão da guilda **BØPE** (Wild Rift).
 - `/ranking` — mostra quem bateu o máximo (2400 pts) primeiro, e a classificação geral
 - `/temporada nova|atual` — inicia uma nova temporada ou mostra a atual (oficiais)
 - `/painel` — (oficiais) publica no canal atual o painel com botões para os membros
+- `/remover membro acao` — (oficiais) **desativar** (sai do ranking, mantém o histórico; volta a ficar ativo se usar `/registrar` de novo) ou **apagar dados** (definitivo: apaga o membro, os pontos e o cargo de patente, após confirmação)
 
 ### Painel do membro
 
@@ -90,6 +91,12 @@ src/
   index.js          bot principal
   deploy-commands.js registro dos slash commands na API do Discord
 ```
+
+## Manter o banco acordado (opcional)
+
+O plano free do Neon hiberna o banco após ~5 min sem uso. O primeiro clique num botão do painel depois disso pode demorar e o Discord mostrar "Esta interação falhou" (basta tocar de novo). Para evitar, defina `DB_KEEPALIVE_MINUTES=4` nas variáveis de ambiente: o bot faz uma consulta mínima a cada 4 minutos e o banco não hiberna.
+
+**Atenção:** com o banco sempre acordado, o consumo de horas de computação do Neon aumenta. Confira o limite do seu plano e o uso em *Neon → Billing/Usage* antes de ativar. Sem a variável, o keep-alive fica desligado.
 
 ## Termos e privacidade
 

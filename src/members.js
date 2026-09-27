@@ -22,8 +22,8 @@ async function saveMember(guild, discordId, { nome, nick, origem, telefone }) {
       };
     }
     const member = await db.createMember(discordId, { nick, nome, origem, telefone });
-    await syncRankRole(guild, discordId, DEFAULT_RANK);
-    return { member, created: true };
+    if (member.inserted) await syncRankRole(guild, discordId, DEFAULT_RANK);
+    return { member, created: member.inserted };
   }
 
   const fields = {};
@@ -35,6 +35,9 @@ async function saveMember(guild, discordId, { nome, nick, origem, telefone }) {
   if (Object.keys(fields).length === 0) {
     return { error: 'Informe ao menos um campo (nome, nick, origem ou telefone) para editar.' };
   }
+
+  // Quem foi desativado e se registra de novo volta a ficar ativo.
+  if (!existing.active) fields.active = true;
 
   const member = await db.updateMember(discordId, fields);
   return { member, created: false };

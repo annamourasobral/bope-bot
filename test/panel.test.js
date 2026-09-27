@@ -83,7 +83,10 @@ test('formulário de registro cria o membro com os dados digitados', async (t) =
   let created;
   stubDb(t, {
     getMember: async () => null,
-    createMember: async (id, data) => (created = { discord_id: id, ...data }),
+    createMember: async (id, data) => {
+      created = { discord_id: id, ...data };
+      return { ...created, inserted: true };
+    },
   });
   const i = fakeInteraction({
     customId: 'painel:registrar-form',

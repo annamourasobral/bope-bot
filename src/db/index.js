@@ -91,11 +91,16 @@ function currentWeekNumber(season) {
   return Math.min(Math.max(week, 1), WEEKS_PER_SEASON);
 }
 
+// Se o membro já existir (ex: dois envios seguidos do formulário), atualiza os dados
+// em vez de falhar. `inserted` diz se o registro foi realmente criado agora.
 async function createMember(discordId, { nick, nome, origem, telefone }) {
   const { rows } = await pool.query(
     `INSERT INTO members (discord_id, nick, nome, origem, telefone)
      VALUES ($1, $2, $3, $4, $5)
-     RETURNING *`,
+     ON CONFLICT (discord_id) DO UPDATE
+       SET nick = EXCLUDED.nick, nome = EXCLUDED.nome, origem = EXCLUDED.origem,
+           telefone = EXCLUDED.telefone, active = true, updated_at = now()
+     RETURNING *, (xmax = 0) AS inserted`,
     [discordId, nick, nome, origem, telefone || null]
   );
   return rows[0];
@@ -149,32 +154,70 @@ async function getWeeklyPoints(memberId, seasonId) {
   return rows;
 }
 
+// Salva os pontos e atualiza a conclusão da temporada numa única transação. O lock
+// na linha do membro faz dois envios simultâneos para o mesmo membro rodarem em fila.
 async function setWeeklyPoints(memberId, seasonId, weekNumber, points, updatedBy) {
-  const { rows } = await pool.query(
-    `INSERT INTO weekly_points (member_id, season_id, week_number, points, updated_by)
-     VALUES ($1, $2, $3, $4, $5)
-     ON CONFLICT (member_id, season_id, week_number)
-     DO UPDATE SET points = $4, updated_by = $5, updated_at = now()
-     RETURNING *`,
-    [memberId, seasonId, weekNumber, points, updatedBy]
-  );
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT 1 FROM members WHERE discord_id = $1 FOR UPDATE', [memberId]);
 
-  const total = await getSeasonTotal(memberId, seasonId);
-  if (total >= SEASON_TOTAL_MAX) {
-    await pool.query(
-      `INSERT INTO season_completions (member_id, season_id)
-       VALUES ($1, $2)
-       ON CONFLICT (member_id, season_id) DO NOTHING`,
+    const { rows } = await client.query(
+      `INSERT INTO weekly_points (member_id, season_id, week_number, points, updated_by)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (member_id, season_id, week_number)
+       DO UPDATE SET points = $4, updated_by = $5, updated_at = now()
+       RETURNING *`,
+      [memberId, seasonId, weekNumber, points, updatedBy]
+    );
+
+    const totalResult = await client.query(
+      'SELECT COALESCE(SUM(points), 0) AS total FROM weekly_points WHERE member_id = $1 AND season_id = $2',
       [memberId, seasonId]
     );
-  } else {
-    await pool.query('DELETE FROM season_completions WHERE member_id = $1 AND season_id = $2', [
-      memberId,
-      seasonId,
-    ]);
-  }
+    if (Number(totalResult.rows[0].total) >= SEASON_TOTAL_MAX) {
+      await client.query(
+        `INSERT INTO season_completions (member_id, season_id)
+         VALUES ($1, $2)
+         ON CONFLICT (member_id, season_id) DO NOTHING`,
+        [memberId, seasonId]
+      );
+    } else {
+      await client.query('DELETE FROM season_completions WHERE member_id = $1 AND season_id = $2', [
+        memberId,
+        seasonId,
+      ]);
+    }
 
-  return rows[0];
+    await client.query('COMMIT');
+    return rows[0];
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+async function deleteMember(discordId) {
+  const { rows } = await pool.query('DELETE FROM members WHERE discord_id = $1 RETURNING *', [
+    discordId,
+  ]);
+  return rows[0] || null;
+}
+
+// Uma query mínima a cada X minutos impede o Neon de hibernar (ver README).
+function startKeepAlive(minutes) {
+  const timer = setInterval(
+    () => {
+      pool
+        .query('SELECT 1')
+        .catch((err) => console.error('Keep-alive do banco falhou:', err.message));
+    },
+    minutes * 60 * 1000
+  );
+  timer.unref();
+  return timer;
 }
 
 async function getRanking(seasonId) {
@@ -207,6 +250,8 @@ module.exports = {
   getSeasonTotals,
   getWeeklyPoints,
   setWeeklyPoints,
+  deleteMember,
+  startKeepAlive,
   getRanking,
   SEASON_TOTAL_MAX,
   WEEK_MAX,

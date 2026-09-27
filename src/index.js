@@ -42,6 +42,12 @@ client.on('interactionCreate', async (interaction) => {
   } else if (isPanelInteraction(interaction)) {
     run = () => handlePanelInteraction(interaction);
     name = interaction.customId;
+  } else if (interaction.isButton()) {
+    // Botões de um comando usam o nome dele como prefixo, ex: "remover:apagar:123".
+    const command = client.commands.get(interaction.customId.split(':')[0]);
+    if (!command?.handleButton) return;
+    run = () => command.handleButton(interaction);
+    name = interaction.customId;
   } else {
     return;
   }
@@ -79,6 +85,11 @@ async function main() {
     startHealthServer();
   }
   await db.init();
+  const keepAliveMinutes = Number(process.env.DB_KEEPALIVE_MINUTES);
+  if (keepAliveMinutes > 0) {
+    db.startKeepAlive(keepAliveMinutes);
+    console.log(`Keep-alive do banco ativo (a cada ${keepAliveMinutes} min)`);
+  }
   await client.login(process.env.DISCORD_TOKEN);
 }
 
