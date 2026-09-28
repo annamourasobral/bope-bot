@@ -49,13 +49,19 @@ module.exports = {
       return;
     }
 
-    const result = await saveMember(interaction.guild, (targetUser || interaction.user).id, {
-      nome: interaction.options.getString('nome') ?? undefined,
-      nick: interaction.options.getString('nick') ?? undefined,
-      origem: interaction.options.getString('origem') ?? undefined,
-      telefone: interaction.options.getString('telefone') ?? undefined,
-      smurfs: interaction.options.getString('smurf') ?? undefined,
-    });
+    // Registro feito por um oficial já conta como aprovado.
+    const result = await saveMember(
+      interaction.guild,
+      (targetUser || interaction.user).id,
+      {
+        nome: interaction.options.getString('nome') ?? undefined,
+        nick: interaction.options.getString('nick') ?? undefined,
+        origem: interaction.options.getString('origem') ?? undefined,
+        telefone: interaction.options.getString('telefone') ?? undefined,
+        smurfs: interaction.options.getString('smurf') ?? undefined,
+      },
+      { approved: isOfficer(interaction) }
+    );
 
     await interaction.reply({
       content: result.error || saveMemberMessage(result),

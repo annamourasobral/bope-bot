@@ -33,6 +33,18 @@ client.once('clientReady', () => {
 });
 
 client.on('interactionCreate', async (interaction) => {
+  // Sugestões enquanto a pessoa digita uma opção (ex: "membro"). Sem resposta de erro:
+  // se falhar, o Discord só não mostra sugestões.
+  if (interaction.isAutocomplete()) {
+    const command = client.commands.get(interaction.commandName);
+    try {
+      await command?.autocomplete?.(interaction);
+    } catch (error) {
+      console.error(`Erro no autocomplete de /${interaction.commandName}:`, error.message);
+    }
+    return;
+  }
+
   let run;
   let name;
   if (interaction.isChatInputCommand()) {

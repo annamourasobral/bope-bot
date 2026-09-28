@@ -123,6 +123,7 @@ test('registro pelo formulário cria a principal e as smurfs digitadas', async (
     '42',
     { nome: 'Maria Silva', origem: 'BR', telefone: '+5511987654321' },
     ['MeuNick', 'Malvada'],
+    { approved: false },
   ]);
   assert.match(i.calls.reply[0].content, /MeuNick\*\* ⭐: ✅ ativa/);
   assert.match(i.calls.reply[0].content, /Malvada\*\* \(smurf\): ✅ ativa/);

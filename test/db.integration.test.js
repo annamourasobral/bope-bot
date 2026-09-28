@@ -154,6 +154,51 @@ test.describe('banco (integração)', opts, () => {
     await assert.rejects(db.approveAccount(9999), { code: 'not_waiting' });
   });
 
+  test('registro feito por oficial não passa pela aprovação, mas respeita o limite', async () => {
+    await db.setSetting('registration_mode', 'aprovacao');
+    const own = await db.registerMember('100', PERSON, ['Athirst']);
+    assert.strictEqual(own.accounts[0].status, 'espera');
+
+    const byOfficer = await db.registerMember('200', PERSON, ['Zeca'], { approved: true });
+    assert.strictEqual(byOfficer.accounts[0].status, 'ativo');
+    const smurf = await db.addAccount('200', 'ZecaSmurf', { approved: true });
+    assert.strictEqual(smurf.account.status, 'ativo');
+
+    await fillGuild(db.GUILD_MAX - 2);
+    const full = await db.registerMember('300', PERSON, ['Cheio'], { approved: true });
+    assert.strictEqual(full.accounts[0].status, 'espera', 'guilda cheia: vai para a espera');
+  });
+
+  test('busca de pessoas registradas por nick (de qualquer conta) ou nome, paginada', async () => {
+    await db.registerMember('100', { ...PERSON, nome: 'Anna Sobral' }, ['Athirst', 'Malvada']);
+    await db.registerMember('200', { ...PERSON, nome: 'José' }, ['Zeca']);
+    await db.registerMember('300', { ...PERSON, nome: 'Fulano' }, ['abc_100%']);
+
+    const all = await db.listPeople();
+    assert.deepStrictEqual(
+      all.people.map((p) => [p.main_nick, p.accounts]),
+      [
+        ['abc_100%', 1],
+        ['Athirst', 2],
+        ['Zeca', 1],
+      ]
+    );
+    assert.strictEqual(all.total, 3);
+    assert.deepStrictEqual(
+      (await db.listPeople({ search: 'malv' })).people.map((p) => p.discord_id),
+      ['100'],
+      'acha pela smurf'
+    );
+    assert.deepStrictEqual(
+      (await db.listPeople({ search: 'josé' })).people.map((p) => p.discord_id),
+      ['200']
+    );
+    assert.strictEqual((await db.listPeople({ search: '_' })).total, 1, '_ não é curinga');
+    assert.strictEqual((await db.listPeople({ search: '%' })).total, 1, '% não é curinga');
+    const page2 = await db.listPeople({ offset: 2, limit: 2 });
+    assert.deepStrictEqual([page2.people.length, page2.total], [1, 3]);
+  });
+
   test('pontos são por conta e só contas ativas pontuam', async () => {
     const season = await createSeason();
     const { accounts } = await db.registerMember('100', PERSON, ['Athirst', 'Malvada']);

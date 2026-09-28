@@ -110,9 +110,14 @@ async function onAccountsActivated(guild, discordId, accounts) {
 
 // Cria ou atualiza o registro de uma pessoa. Campos `undefined` ficam como estão; o
 // telefone é obrigatório e não pode ser apagado. `smurfs` é um texto com nicks separados
-// por vírgula.
+// por vírgula. `approved`: feito por um oficial, as contas não passam pela aprovação.
 // Retorna `{ error }` ou `{ member, accounts, created }`.
-async function saveMember(guild, discordId, { nome, nick, origem, telefone, smurfs }) {
+async function saveMember(
+  guild,
+  discordId,
+  { nome, nick, origem, telefone, smurfs },
+  { approved = false } = {}
+) {
   if (telefone !== undefined && !PHONE_REGEX.test(telefone || '')) {
     return { error: 'Telefone inválido. Use o formato com DDI, ex: `+5511987654321`.' };
   }
@@ -133,10 +138,12 @@ async function saveMember(guild, discordId, { nome, nick, origem, telefone, smur
       return { error: `No máximo ${MAX_ACCOUNTS_PER_PERSON} contas por pessoa.` };
     }
     try {
-      const result = await db.registerMember(discordId, { nome, origem, telefone }, [
-        nick,
-        ...smurfNicks,
-      ]);
+      const result = await db.registerMember(
+        discordId,
+        { nome, origem, telefone },
+        [nick, ...smurfNicks],
+        { approved }
+      );
       if (result) {
         const accounts = await withWaitPositions(result.accounts);
         await onAccountsActivated(guild, discordId, accounts);
@@ -171,7 +178,9 @@ async function saveMember(guild, discordId, { nome, nick, origem, telefone, smur
   try {
     if (renameMain) await db.renameAccount(main.id, nick);
     const added = [];
-    for (const smurf of smurfNicks) added.push((await db.addAccount(discordId, smurf)).account);
+    for (const smurf of smurfNicks) {
+      added.push((await db.addAccount(discordId, smurf, { approved })).account);
+    }
     await onAccountsActivated(guild, discordId, added);
     await notifyWaiting(guild, await withWaitPositions(added));
   } catch (err) {
@@ -200,7 +209,7 @@ function saveMemberMessage({ member, accounts, created }) {
 }
 
 // Adiciona uma smurf (ou traz de volta uma conta inativa da própria pessoa).
-async function addMemberAccount(guild, discordId, nick) {
+async function addMemberAccount(guild, discordId, nick, { approved = false } = {}) {
   const member = await db.getMember(discordId);
   if (!member) return { error: 'Faça o registro antes de adicionar contas.' };
   const nickError = validateNicks([nick]);
@@ -213,7 +222,7 @@ async function addMemberAccount(guild, discordId, nick) {
 
   let result;
   try {
-    result = await db.addAccount(discordId, nick);
+    result = await db.addAccount(discordId, nick, { approved });
   } catch (err) {
     return { error: ruleErrorMessage(err) };
   }

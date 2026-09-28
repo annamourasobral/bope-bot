@@ -29,7 +29,9 @@ São oficiais quem tem o cargo **CAPITÃO**, **MAJOR** ou **CORONEL** (IDs em [s
 
 ### Comandos
 
-- `/registrar` — registra/atualiza nome, nick da conta principal, origem (BR/PT), telefone (obrigatório, com DDI) e smurfs (opcional, `smurf:Conta2, Conta3`). Só passe o que quiser mudar.
+Nos comandos `/status`, `/pontos`, `/patente` e `/remover`, a opção `membro` sugere **só pessoas registradas** enquanto você digita (nick ou nome); escolha da lista. Só o `/registrar membro:` lista todo mundo do servidor, porque a pessoa ainda não está registrada.
+
+- `/registrar` — registra/atualiza nome, nick da conta principal, origem (BR/PT), telefone (obrigatório, com DDI) e smurfs (opcional, `smurf:Conta2, Conta3`). Só passe o que quiser mudar. Oficiais podem registrar outra pessoa com `membro:`; registro feito por oficial já entra aprovado.
 - `/status [membro]` — dados da pessoa e de cada conta (status e pontos por semana). Telefone só aparece para o próprio membro ou oficiais.
 - `/membros [pagina]` — lista as contas ativas, com as smurfs identificadas
 - `/pontos pontos [conta] [membro] [semana]` — registra pontos semanais. Com mais de uma conta ativa, informe `conta:`. Editar de outro membro é só para oficiais.
@@ -57,7 +59,8 @@ Um oficial usa `/painel tipo:staff` num canal **só de oficiais** e fixa a mensa
 - **📭 Sem pontos** — contas ativas que ainda não registraram pontos na semana atual
 - **🏆 Ranking**
 - **📤 Exportar** — planilha CSV (abre no Excel/Google Sheets) com todas as contas, telefones e pontos por semana
-- **🎯 Pontos** · **🎖️ Patente** · **🗑️ Remover** — as ações de oficial em formulários
+- **📝 Registrar** — registra alguém do servidor (membro do Discord, nome, nick, origem, telefone). Registro feito por oficial já entra aprovado: ativo se houver vaga, lista de espera só se a guilda estiver cheia. Quem já está registrado é recusado.
+- **➕ Conta** · **🎯 Pontos** · **🎖️ Patente** · **🗑️ Remover** — primeiro escolha o membro numa lista **só com pessoas registradas** (páginas de 25 e 🔎 busca por nick ou nome); depois a ação mostra só as opções válidas (as contas daquela pessoa, as patentes...)
 - **⚙️ Registro** — alterna entre registro aberto e aprovação
 
 As respostas dos dois painéis só aparecem para quem tocou no botão. Os painéis continuam funcionando após reinícios do bot; para atualizar o texto, apague a mensagem antiga e use `/painel` de novo.

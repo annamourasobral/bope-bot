@@ -2,22 +2,31 @@ const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const db = require('../db');
 const { isOfficer } = require('../permissions');
 const { buildStatusEmbed } = require('../members');
+const {
+  memberOption,
+  respondMemberAutocomplete,
+  getMemberId,
+  NOT_FROM_LIST,
+} = require('../member-option');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('status')
     .setDescription('Mostra o status de um membro na guilda')
-    .addUserOption((opt) =>
-      opt.setName('membro').setDescription('Membro a consultar (padrão: você)').setRequired(false)
-    ),
+    .addStringOption((opt) => memberOption(opt, 'Membro a consultar (padrão: você)', false)),
+
+  autocomplete: respondMemberAutocomplete,
 
   async execute(interaction) {
-    const targetUser = interaction.options.getUser('membro') || interaction.user;
+    const chosenId = getMemberId(interaction);
+    const targetUser = { id: chosenId || interaction.user.id };
     const member = await db.getMember(targetUser.id);
 
     if (!member) {
       await interaction.reply({
-        content: `<@${targetUser.id}> ainda não está registrado. Use \`/registrar\`.`,
+        content: chosenId
+          ? NOT_FROM_LIST
+          : 'Você ainda não está registrado. Use `/registrar` ou o painel.',
         flags: MessageFlags.Ephemeral,
       });
       return;

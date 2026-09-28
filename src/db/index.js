@@ -250,15 +250,15 @@ async function countActive(client = pool) {
   return Number(rows[0].n);
 }
 
-// Com o registro aberto e vaga livre a conta entra ativa; senão vai para a lista de espera.
-async function statusForNewAccount(client) {
-  const mode = await getRegistrationMode(client);
-  if (mode !== 'aberto') return 'espera';
+// Com o registro aberto (ou feito por um oficial, `approved`) e vaga livre a conta entra
+// ativa; senão vai para a lista de espera.
+async function statusForNewAccount(client, approved) {
+  if (!approved && (await getRegistrationMode(client)) !== 'aberto') return 'espera';
   return (await countActive(client)) < GUILD_MAX ? 'ativo' : 'espera';
 }
 
-async function insertAccount(client, discordId, nick, isMain) {
-  const status = await statusForNewAccount(client);
+async function insertAccount(client, discordId, nick, isMain, approved) {
+  const status = await statusForNewAccount(client, approved);
   const { rows } = await client.query(
     `INSERT INTO accounts (member_id, nick, is_main, status)
      VALUES ($1, $2, $3, $4)
@@ -270,7 +270,8 @@ async function insertAccount(client, discordId, nick, isMain) {
 
 // Primeiro registro: cria a pessoa e as contas (a primeira é a principal).
 // Retorna null se a pessoa já existir (ex: formulário enviado duas vezes).
-async function registerMember(discordId, { nome, origem, telefone }, nicks) {
+// `approved`: registro feito por oficial, não passa pela aprovação.
+async function registerMember(discordId, { nome, origem, telefone }, nicks, { approved } = {}) {
   return transaction(async (client) => {
     await lockAccounts(client);
     const existing = await client.query('SELECT 1 FROM members WHERE discord_id = $1', [discordId]);
@@ -286,7 +287,7 @@ async function registerMember(discordId, { nome, origem, telefone }, nicks) {
     );
     const accounts = [];
     for (const [i, nick] of nicks.entries()) {
-      accounts.push(await insertAccount(client, discordId, nick, i === 0));
+      accounts.push(await insertAccount(client, discordId, nick, i === 0, approved));
     }
     return { member: rows[0], accounts };
   });
@@ -327,7 +328,7 @@ async function findAccountByNick(nick) {
 
 // Conta nova para uma pessoa já registrada. Se o nick for de uma conta inativa dela,
 // a conta volta (ativa ou na lista de espera, com o histórico de pontos mantido).
-async function addAccount(discordId, nick) {
+async function addAccount(discordId, nick, { approved } = {}) {
   return transaction(async (client) => {
     await lockAccounts(client);
     const own = await client.query(
@@ -336,7 +337,7 @@ async function addAccount(discordId, nick) {
     );
     if (own.rows[0]) {
       if (own.rows[0].status !== 'inativo') throw new RuleError('already_yours', { nick });
-      const status = await statusForNewAccount(client);
+      const status = await statusForNewAccount(client, approved);
       const { rows } = await client.query(
         `UPDATE accounts SET status = $2, status_changed_at = now() WHERE id = $1 RETURNING *`,
         [own.rows[0].id, status]
@@ -348,7 +349,13 @@ async function addAccount(discordId, nick) {
     const count = await client.query('SELECT count(*) AS n FROM accounts WHERE member_id = $1', [
       discordId,
     ]);
-    const account = await insertAccount(client, discordId, nick, Number(count.rows[0].n) === 0);
+    const account = await insertAccount(
+      client,
+      discordId,
+      nick,
+      Number(count.rows[0].n) === 0,
+      approved
+    );
     return { account, reactivated: false };
   });
 }
@@ -438,6 +445,34 @@ async function deleteAccount(accountId) {
     }
     return { account, memberDeleted: false };
   });
+}
+
+// Pessoas registradas, em ordem de nick principal, para escolher num menu. `search`
+// procura no nome e no nick de qualquer conta. Retorna `{ people, total }`.
+async function listPeople({ search = null, offset = 0, limit = 25 } = {}) {
+  const pattern = search ? `%${search.replace(/[\\%_]/g, (c) => `\\${c}`)}%` : null;
+  const where = `
+    WHERE $1::text IS NULL OR m.nome ILIKE $1
+       OR EXISTS (SELECT 1 FROM accounts s WHERE s.member_id = m.discord_id AND s.nick ILIKE $1)`;
+  const { rows } = await pool.query(
+    `SELECT m.discord_id, m.nome, m.patente,
+            COALESCE(main.nick, m.nick) AS main_nick,
+            count(a.id) AS accounts,
+            count(a.id) FILTER (WHERE a.status = 'ativo') AS active
+     FROM members m
+     LEFT JOIN accounts a ON a.member_id = m.discord_id
+     LEFT JOIN accounts main ON main.member_id = m.discord_id AND main.is_main
+     ${where}
+     GROUP BY m.discord_id, main.nick
+     ORDER BY lower(COALESCE(main.nick, m.nick)), m.discord_id
+     LIMIT $2 OFFSET $3`,
+    [pattern, limit, offset]
+  );
+  const count = await pool.query(`SELECT count(*) AS n FROM members m ${where}`, [pattern]);
+  return {
+    people: rows.map((r) => ({ ...r, accounts: Number(r.accounts), active: Number(r.active) })),
+    total: Number(count.rows[0].n),
+  };
 }
 
 async function listAccounts(status = null) {
@@ -631,6 +666,7 @@ module.exports = {
   deactivateMember,
   deleteAccount,
   listAccounts,
+  listPeople,
   getAccountCounts,
   getWaitlist,
   getSeasonTotal,

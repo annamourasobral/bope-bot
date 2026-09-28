@@ -1,5 +1,6 @@
 // Painel da staff: lista de membros, lista de espera, pendências da semana, ranking,
-// exportação e ações de oficial (pontos, patente, remover, modo de registro).
+// exportação e ações de oficial (registrar, contas, pontos, patente, remover, modo de
+// registro). As ações escolhem o membro numa lista só com pessoas registradas.
 // Toda interação confere se quem tocou é oficial, mesmo que o canal já seja restrito.
 const {
   ActionRowBuilder,
@@ -24,9 +25,14 @@ const {
   ruleErrorMessage,
   describeStatus,
   onAccountsActivated,
+  saveMember,
+  saveMemberMessage,
+  addMemberAccount,
+  addAccountMessage,
   savePoints,
   savePointsMessage,
 } = require('./members');
+const { personLabel } = require('./member-option');
 const { weekSelect, pointsInput, readPoints } = require('./panel');
 const { accountLine, mainNicksFor } = require('./commands/membros');
 const { buildRankingEmbed } = require('./commands/ranking');
@@ -42,6 +48,8 @@ const IDS = {
   missing: 'staff:sempontos',
   ranking: 'staff:ranking',
   export: 'staff:exportar',
+  register: 'staff:registrar',
+  addAccount: 'staff:conta',
   points: 'staff:pontos',
   rank: 'staff:patente',
   remove: 'staff:remover',
@@ -53,10 +61,28 @@ const IDS = {
   approve: 'staff:aprovar:', // + id da conta
   reject: 'staff:recusar:', // + id da conta
   setMode: 'staff:modo:', // + aberto | aprovacao
-  pointsForm: 'staff:pontos-form',
-  rankForm: 'staff:patente-form',
-  removeForm: 'staff:remover-form',
+  registerForm: 'staff:registrar-form',
+  // Escolha de membro registrado para uma ação (conta, pontos, patente, remover).
+  pick: 'staff:escolher:', // + ação
+  pickPage: 'staff:escolher-pagina:', // + ação:pagina:busca
+  pickSearch: 'staff:escolher-busca:', // + ação
+  pickSearchForm: 'staff:escolher-busca-form:', // + ação
+  // Segundo passo de cada ação, já com o membro escolhido.
+  accountForm: 'staff:conta-form:', // + discord id
+  pointsAccount: 'staff:pontos-conta', // menu com as contas ativas
+  pointsForm: 'staff:pontos-form:', // + id da conta
+  rankSet: 'staff:patente-set:', // + discord id
+  removeSet: 'staff:remover-set:', // + discord id
 };
+
+const ACTIONS = {
+  conta: '➕ Adicionar conta (smurf)',
+  pontos: '🎯 Pontos de um membro',
+  patente: '🎖️ Alterar patente',
+  remover: '🗑️ Remover',
+};
+const PICK_PAGE_SIZE = 25;
+const SEARCH_MAX = 40;
 
 const FILTERS = {
   ativo: 'Ativos',
@@ -85,7 +111,8 @@ function buildStaffPanelMessage() {
         '⏳ **Lista de espera**: aprovar ou recusar contas',
         '📭 **Sem pontos**: quem ainda não registrou pontos nesta semana',
         '🏆 **Ranking** · 📤 **Exportar**: planilha CSV com todas as contas',
-        '🎯 **Pontos** · 🎖️ **Patente** · 🗑️ **Remover**: ações em qualquer membro',
+        '📝 **Registrar**: registrar alguém do servidor (já entra aprovado)',
+        '➕ **Conta** · 🎯 **Pontos** · 🎖️ **Patente** · 🗑️ **Remover**: ações num membro registrado',
         '⚙️ **Registro**: abrir o registro ou exigir aprovação',
       ].join('\n')
     )
@@ -100,11 +127,13 @@ function buildStaffPanelMessage() {
       button(IDS.export, 'Exportar', '📤')
     ),
     new ActionRowBuilder().addComponents(
+      button(IDS.register, 'Registrar', '📝', ButtonStyle.Success),
+      button(IDS.addAccount, 'Conta', '➕', ButtonStyle.Success),
       button(IDS.points, 'Pontos', '🎯', ButtonStyle.Success),
       button(IDS.rank, 'Patente', '🎖️', ButtonStyle.Success),
-      button(IDS.remove, 'Remover', '🗑️', ButtonStyle.Danger),
-      button(IDS.mode, 'Registro', '⚙️')
+      button(IDS.remove, 'Remover', '🗑️', ButtonStyle.Danger)
     ),
+    new ActionRowBuilder().addComponents(button(IDS.mode, 'Registro', '⚙️')),
   ];
 
   return { embeds: [embed], components: rows };
@@ -324,29 +353,150 @@ async function buildModeView(notice) {
   };
 }
 
-// --- Formulários -------------------------------------------------------------------
+// --- Escolher um membro registrado ----------------------------------------------------
 
-function nickInput(required) {
-  return new TextInputBuilder()
-    .setCustomId('nick')
-    .setStyle(TextInputStyle.Short)
-    .setMaxLength(NICK_MAX)
-    .setRequired(required);
+// Lista paginada só com pessoas registradas (o seletor de usuários do Discord mostraria
+// todo mundo do servidor).
+async function buildPicker(action, page = 1, search = null) {
+  const { people, total } = await db.listPeople({
+    search,
+    offset: (page - 1) * PICK_PAGE_SIZE,
+    limit: PICK_PAGE_SIZE,
+  });
+  const totalPages = Math.max(1, Math.ceil(total / PICK_PAGE_SIZE));
+  const found = search ? ` com "${search}"` : '';
+  const header = `**${ACTIONS[action]}**\n`;
+
+  if (total === 0) {
+    return {
+      content: `${header}Nenhum membro registrado${found}.`,
+      embeds: [],
+      components: [
+        new ActionRowBuilder().addComponents(
+          button(`${IDS.pickSearch}${action}`, 'Buscar', '🔎'),
+          ...(search ? [button(`${IDS.pickPage}${action}:1:`, 'Ver todos', '↩️')] : [])
+        ),
+      ],
+    };
+  }
+
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(`${IDS.pick}${action}`)
+    .setPlaceholder('Escolha o membro')
+    .addOptions(
+      people.map((p) =>
+        new StringSelectMenuOptionBuilder().setLabel(personLabel(p)).setValue(p.discord_id)
+      )
+    );
+  // A busca vai no custom id para as páginas continuarem filtradas.
+  const pageId = (n) => `${IDS.pickPage}${action}:${n}:${search || ''}`;
+  const nav = [
+    new ButtonBuilder()
+      .setCustomId(pageId(page - 1))
+      .setEmoji('◀️')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(page <= 1),
+    new ButtonBuilder()
+      .setCustomId(pageId(page + 1))
+      .setEmoji('▶️')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(page >= totalPages),
+    button(`${IDS.pickSearch}${action}`, 'Buscar', '🔎'),
+  ];
+  if (search) nav.push(button(`${IDS.pickPage}${action}:1:`, 'Ver todos', '↩️'));
+
+  return {
+    content: `${header}Escolha o membro: ${total} registrado(s)${found} · página ${page}/${totalPages}`,
+    embeds: [],
+    components: [
+      new ActionRowBuilder().addComponents(select),
+      new ActionRowBuilder().addComponents(nav),
+    ],
+  };
 }
 
-function memberSelect() {
-  return new UserSelectMenuBuilder().setCustomId('membro').setRequired(true);
-}
-
-function buildPointsModal(season) {
+function buildSearchModal(action) {
   return new ModalBuilder()
-    .setCustomId(IDS.pointsForm)
-    .setTitle('Pontos de um membro')
+    .setCustomId(`${IDS.pickSearchForm}${action}`)
+    .setTitle('Buscar membro')
     .addLabelComponents(
       new LabelBuilder()
-        .setLabel('Nick da conta')
-        .setDescription('Principal ou smurf, como aparece na lista de membros')
-        .setTextInputComponent(nickInput(true)),
+        .setLabel('Nick ou nome')
+        .setDescription('Pode ser só um pedaço, ex: "malv"')
+        .setTextInputComponent(
+          new TextInputBuilder()
+            .setCustomId('busca')
+            .setStyle(TextInputStyle.Short)
+            .setMaxLength(SEARCH_MAX)
+            .setRequired(true)
+        )
+    );
+}
+
+// --- Formulários -------------------------------------------------------------------
+
+function textInput(id, maxLength, { placeholder } = {}) {
+  const input = new TextInputBuilder()
+    .setCustomId(id)
+    .setStyle(TextInputStyle.Short)
+    .setMaxLength(maxLength)
+    .setRequired(true);
+  if (placeholder) input.setPlaceholder(placeholder);
+  return input;
+}
+
+// Registrar alguém: é o único formulário que lista todo mundo do servidor, porque a
+// pessoa ainda não está no banco. Quem já está registrado é recusado.
+function buildRegisterModal() {
+  return new ModalBuilder()
+    .setCustomId(IDS.registerForm)
+    .setTitle('Registrar membro')
+    .addLabelComponents(
+      new LabelBuilder()
+        .setLabel('Membro do Discord')
+        .setUserSelectMenuComponent(
+          new UserSelectMenuBuilder().setCustomId('membro').setRequired(true)
+        ),
+      new LabelBuilder().setLabel('Nome').setTextInputComponent(textInput('nome', 100)),
+      new LabelBuilder()
+        .setLabel('Nick da conta principal')
+        .setDescription('Smurfs: depois, pelo botão ➕ Conta')
+        .setTextInputComponent(textInput('nick', NICK_MAX)),
+      new LabelBuilder()
+        .setLabel('Servidor de origem')
+        .setStringSelectMenuComponent(
+          new StringSelectMenuBuilder()
+            .setCustomId('origem')
+            .setRequired(true)
+            .addOptions(
+              new StringSelectMenuOptionBuilder().setLabel('Brasil (BR)').setValue('BR'),
+              new StringSelectMenuOptionBuilder().setLabel('Portugal (PT)').setValue('PT')
+            )
+        ),
+      new LabelBuilder()
+        .setLabel('Telefone')
+        .setDescription('Com DDI, ex: +5511987654321')
+        .setTextInputComponent(textInput('telefone', 16, { placeholder: '+5511987654321' }))
+    );
+}
+
+function buildAccountModal(discordId, nome) {
+  return new ModalBuilder()
+    .setCustomId(`${IDS.accountForm}${discordId}`)
+    .setTitle(`Nova conta: ${nome}`.slice(0, 45))
+    .addLabelComponents(
+      new LabelBuilder()
+        .setLabel('Nick da conta no Wild Rift')
+        .setDescription('Conta desativada da pessoa? Use o mesmo nick para ela voltar.')
+        .setTextInputComponent(textInput('nick', NICK_MAX))
+    );
+}
+
+function buildPointsModal(season, account) {
+  return new ModalBuilder()
+    .setCustomId(`${IDS.pointsForm}${account.id}`)
+    .setTitle(`Pontos: ${account.nick}`.slice(0, 45))
+    .addLabelComponents(
       new LabelBuilder().setLabel('Semana').setStringSelectMenuComponent(weekSelect(season)),
       new LabelBuilder()
         .setLabel('Pontos da semana')
@@ -355,53 +505,113 @@ function buildPointsModal(season) {
     );
 }
 
-function buildRankModal() {
-  return new ModalBuilder()
-    .setCustomId(IDS.rankForm)
-    .setTitle('Alterar patente')
-    .addLabelComponents(
-      new LabelBuilder().setLabel('Membro').setUserSelectMenuComponent(memberSelect()),
-      new LabelBuilder().setLabel('Nova patente').setStringSelectMenuComponent(
+// --- Segundo passo de cada ação --------------------------------------------------------
+
+function buildAccountChoice(accounts) {
+  return {
+    content: '**🎯 Pontos de um membro**\nQual conta?',
+    embeds: [],
+    components: [
+      new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder()
-          .setCustomId('patente')
-          .setRequired(true)
+          .setCustomId(IDS.pointsAccount)
           .addOptions(
-            RANK_NAMES.map((name) =>
-              new StringSelectMenuOptionBuilder().setLabel(name).setValue(name)
+            accounts.map((a) =>
+              new StringSelectMenuOptionBuilder()
+                .setLabel(`${a.nick}${a.is_main ? ' (principal)' : ' (smurf)'}`)
+                .setValue(String(a.id))
             )
           )
-      )
-    );
+      ),
+    ],
+  };
 }
 
-function buildRemoveModal() {
-  return new ModalBuilder()
-    .setCustomId(IDS.removeForm)
-    .setTitle('Remover membro')
-    .addLabelComponents(
-      new LabelBuilder().setLabel('Membro').setUserSelectMenuComponent(memberSelect()),
-      new LabelBuilder()
-        .setLabel('Conta (opcional)')
-        .setDescription('Nick de uma conta só, ex: a smurf. Vazio = todas as contas.')
-        .setTextInputComponent(nickInput(false)),
-      new LabelBuilder()
-        .setLabel('Ação')
-        .setStringSelectMenuComponent(
-          new StringSelectMenuBuilder()
-            .setCustomId('acao')
-            .setRequired(true)
-            .addOptions(
-              new StringSelectMenuOptionBuilder()
-                .setLabel('Desativar')
-                .setDescription('Sai do ranking e libera a vaga; histórico mantido')
-                .setValue('desativar'),
-              new StringSelectMenuOptionBuilder()
-                .setLabel('Apagar dados')
-                .setDescription('Definitivo, inclui os pontos. Pede confirmação.')
-                .setValue('apagar')
-            )
+function buildRankChoice(member) {
+  return {
+    content: `**🎖️ Alterar patente**\n**${member.nome}** (<@${member.discord_id}>) é **${member.patente}**. Nova patente:`,
+    embeds: [],
+    components: [
+      new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder().setCustomId(`${IDS.rankSet}${member.discord_id}`).addOptions(
+          RANK_NAMES.map((name) =>
+            new StringSelectMenuOptionBuilder()
+              .setLabel(name)
+              .setValue(name)
+              .setDefault(name === member.patente)
+          )
         )
-    );
+      ),
+    ],
+  };
+}
+
+// Opções já com o alvo: "desativar:all", "desativar:<id da conta>", "apagar:all", ...
+function buildRemoveChoice(member, accounts) {
+  const options = [];
+  for (const action of ['desativar', 'apagar']) {
+    const verb = action === 'desativar' ? 'Desativar' : 'Apagar';
+    if (accounts.length > 1) {
+      options.push(
+        new StringSelectMenuOptionBuilder()
+          .setLabel(`${verb} todas as contas`)
+          .setValue(`${action}:all`)
+      );
+    }
+    for (const a of accounts) {
+      if (action === 'desativar' && a.status === 'inativo') continue;
+      options.push(
+        new StringSelectMenuOptionBuilder()
+          .setLabel(`${verb} ${a.nick}${a.is_main ? ' (principal)' : ' (smurf)'}`.slice(0, 100))
+          .setDescription(
+            action === 'desativar'
+              ? `Sai do ranking e libera a vaga (${describeStatus(a).replace(/^\S+ /, '')})`
+              : 'Definitivo, inclui os pontos. Pede confirmação.'
+          )
+          .setValue(`${action}:${a.id}`)
+      );
+    }
+  }
+  return {
+    content: `**🗑️ Remover**\n**${member.nome}** (<@${member.discord_id}>): o que fazer?`,
+    embeds: [],
+    components: [
+      new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(`${IDS.removeSet}${member.discord_id}`)
+          .addOptions(options)
+      ),
+    ],
+  };
+}
+
+// Membro escolhido na lista: abre o segundo passo da ação.
+async function onPicked(interaction, action, discordId) {
+  const member = await db.getMember(discordId);
+  if (!member) {
+    return updateInPlace(interaction, () => buildPicker(action));
+  }
+  const accounts = await db.getAccounts(discordId);
+
+  if (action === 'conta') return interaction.showModal(buildAccountModal(discordId, member.nome));
+  if (action === 'patente') return updateInPlace(interaction, () => buildRankChoice(member));
+  if (action === 'remover') {
+    return updateInPlace(interaction, () => buildRemoveChoice(member, accounts));
+  }
+
+  // pontos
+  const season = await db.getActiveSeason();
+  const active = accounts.filter((a) => a.status === 'ativo');
+  if (!season || active.length === 0) {
+    return updateInPlace(interaction, () => ({
+      content: !season
+        ? 'Nenhuma temporada ativa configurada.'
+        : `**${member.nome}** não tem conta ativa (${accounts.map((a) => `${a.nick}: ${describeStatus(a)}`).join(', ')}).`,
+      components: [],
+    }));
+  }
+  if (active.length === 1) return interaction.showModal(buildPointsModal(season, active[0]));
+  return updateInPlace(interaction, () => buildAccountChoice(active));
 }
 
 // --- Roteamento ------------------------------------------------------------------
@@ -423,6 +633,14 @@ async function replyPrivately(interaction, build) {
 async function updateInPlace(interaction, build) {
   await interaction.deferUpdate();
   await interaction.editReply(await build());
+}
+
+// Formulário aberto a partir de uma resposta (ex: depois de escolher o membro): o
+// resultado substitui essa resposta. Aberto direto do painel: resposta nova.
+function respond(interaction, build) {
+  return interaction.isFromMessage?.() && interaction.message?.flags?.has(MessageFlags.Ephemeral)
+    ? updateInPlace(interaction, build)
+    : replyPrivately(interaction, build);
 }
 
 async function handleStaffInteraction(interaction) {
@@ -457,45 +675,96 @@ async function handleStaffInteraction(interaction) {
       return replyPrivately(interaction, buildExport);
     case IDS.mode:
       return replyPrivately(interaction, () => buildModeView());
-    case IDS.points: {
-      const season = await db.getActiveSeason();
-      if (!season) {
-        return interaction.reply({
-          content: 'Nenhuma temporada ativa configurada.',
-          flags: MessageFlags.Ephemeral,
-        });
-      }
-      return interaction.showModal(buildPointsModal(season));
-    }
+    case IDS.register:
+      return interaction.showModal(buildRegisterModal());
+    case IDS.registerForm:
+      return replyPrivately(interaction, () => submitRegister(interaction));
+    case IDS.addAccount:
+      return replyPrivately(interaction, () => buildPicker('conta'));
+    case IDS.points:
+      return replyPrivately(interaction, () => buildPicker('pontos'));
     case IDS.rank:
-      return interaction.showModal(buildRankModal());
+      return replyPrivately(interaction, () => buildPicker('patente'));
     case IDS.remove:
-      return interaction.showModal(buildRemoveModal());
-    case IDS.pointsForm:
-      return replyPrivately(interaction, () => submitPoints(interaction));
-    case IDS.rankForm:
-      return replyPrivately(interaction, () => submitRank(interaction));
-    case IDS.removeForm: {
-      const { fields } = interaction;
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-      return startRemoval(interaction, {
-        discordId: fields.getSelectedUsers('membro', true).first().id,
-        nick: fields.getTextInputValue('nick').trim() || null,
-        action: fields.getStringSelectValues('acao')[0],
-      });
+      return replyPrivately(interaction, () => buildPicker('remover'));
+    case IDS.pointsAccount: {
+      const season = await db.getActiveSeason();
+      const account = await db.getAccount(Number(interaction.values[0]));
+      if (!season || account?.status !== 'ativo') {
+        return updateInPlace(interaction, () => ({
+          content: 'Essa conta não está mais ativa ou não há temporada ativa.',
+          components: [],
+        }));
+      }
+      return interaction.showModal(buildPointsModal(season, account));
     }
   }
 
+  const action = (prefix) => customId.slice(prefix.length);
+
   if (customId.startsWith(IDS.membersPage)) {
-    const [filter, page] = customId.slice(IDS.membersPage.length).split(':');
+    const [filter, page] = action(IDS.membersPage).split(':');
     return updateInPlace(interaction, () => buildMembersView(filter, Number(page)));
   }
+  if (customId.startsWith(IDS.pickPage)) {
+    const [pickAction, page, ...search] = action(IDS.pickPage).split(':');
+    if (!ACTIONS[pickAction]) return;
+    return updateInPlace(interaction, () =>
+      buildPicker(pickAction, Number(page), search.join(':') || null)
+    );
+  }
+  if (customId.startsWith(IDS.pickSearchForm)) {
+    const pickAction = action(IDS.pickSearchForm);
+    if (!ACTIONS[pickAction]) return;
+    const search = interaction.fields.getTextInputValue('busca').trim().slice(0, SEARCH_MAX);
+    return respond(interaction, () => buildPicker(pickAction, 1, search || null));
+  }
+  if (customId.startsWith(IDS.pickSearch)) {
+    const pickAction = action(IDS.pickSearch);
+    if (!ACTIONS[pickAction]) return;
+    return interaction.showModal(buildSearchModal(pickAction));
+  }
+  if (customId.startsWith(IDS.pick)) {
+    const pickAction = action(IDS.pick);
+    if (!ACTIONS[pickAction]) return;
+    return onPicked(interaction, pickAction, interaction.values[0]);
+  }
+  if (customId.startsWith(IDS.accountForm)) {
+    const discordId = action(IDS.accountForm);
+    const nick = interaction.fields.getTextInputValue('nick').trim();
+    return respond(interaction, async () => {
+      const result = await addMemberAccount(interaction.guild, discordId, nick, { approved: true });
+      return { content: result.error || addAccountMessage(result), components: [] };
+    });
+  }
+  if (customId.startsWith(IDS.pointsForm)) {
+    const accountId = Number(action(IDS.pointsForm));
+    return respond(interaction, () => submitPoints(interaction, accountId));
+  }
+  if (customId.startsWith(IDS.rankSet)) {
+    const discordId = action(IDS.rankSet);
+    return updateInPlace(interaction, () => setRank(interaction, discordId));
+  }
+  if (customId.startsWith(IDS.removeSet)) {
+    const discordId = action(IDS.removeSet);
+    const [removeAction, target] = interaction.values[0].split(':');
+    await interaction.deferUpdate();
+    const account = target === 'all' ? null : await db.getAccount(Number(target));
+    if (target !== 'all' && account?.member_id !== discordId) {
+      return interaction.editReply({ content: 'Essa conta não existe mais.', components: [] });
+    }
+    return startRemoval(interaction, {
+      discordId,
+      nick: account?.nick ?? null,
+      action: removeAction,
+    });
+  }
   if (customId.startsWith(IDS.approve)) {
-    const accountId = Number(customId.slice(IDS.approve.length));
+    const accountId = Number(action(IDS.approve));
     return updateInPlace(interaction, () => approve(interaction, accountId));
   }
   if (customId.startsWith(IDS.reject)) {
-    const accountId = Number(customId.slice(IDS.reject.length));
+    const accountId = Number(action(IDS.reject));
     return updateInPlace(interaction, async () => {
       const account = await db.getAccount(accountId);
       if (!account || account.status !== 'espera') {
@@ -506,7 +775,7 @@ async function handleStaffInteraction(interaction) {
     });
   }
   if (customId.startsWith(IDS.setMode)) {
-    const mode = customId.slice(IDS.setMode.length);
+    const mode = action(IDS.setMode);
     if (!db.REGISTRATION_MODES.includes(mode)) return;
     return updateInPlace(interaction, async () => {
       await db.setSetting('registration_mode', mode);
@@ -528,28 +797,54 @@ async function approve(interaction, accountId) {
   return buildWaitlistView(`✅ **${account.nick}** (<@${account.member_id}>) aprovada e ativa.`);
 }
 
-async function submitPoints(interaction) {
-  const { fields } = interaction;
-  const points = readPoints(fields);
-  if (points === null) return { content: `Digite só números, de 0 a ${db.WEEK_MAX}.` };
-  const nick = fields.getTextInputValue('nick').trim();
-  const account = await db.findAccountByNick(nick);
-  if (!account) return { content: `Nenhuma conta com o nick **${nick}**.` };
-  const week = Number(fields.getStringSelectValues('semana')[0]);
-  const result = await savePoints(account, points, week, interaction.user.id);
-  return { content: result.error || savePointsMessage(result) };
-}
-
-async function submitRank(interaction) {
+async function submitRegister(interaction) {
   const { fields } = interaction;
   const user = fields.getSelectedUsers('membro', true).first();
-  const patente = fields.getStringSelectValues('patente')[0];
-  const member = await db.getMember(user.id);
-  if (!member) return { content: `<@${user.id}> ainda não está registrado.` };
-  await db.updateMember(user.id, { patente });
-  await syncRankRole(interaction.guild, user.id, patente);
+  if (user.bot) return { content: 'Bots não podem ser registrados.' };
+  if (await db.getMember(user.id)) {
+    return {
+      content: `<@${user.id}> já está registrado. Para editar os dados use \`/registrar membro:\`; para uma smurf, o botão ➕ Conta.`,
+    };
+  }
+  const result = await saveMember(
+    interaction.guild,
+    user.id,
+    {
+      nome: fields.getTextInputValue('nome').trim(),
+      nick: fields.getTextInputValue('nick').trim(),
+      origem: fields.getStringSelectValues('origem')[0],
+      telefone: fields.getTextInputValue('telefone').trim(),
+    },
+    { approved: true }
+  );
+  if (!result.error) console.log(`Membro ${user.id} registrado por ${interaction.user.id}`);
+  return { content: result.error || saveMemberMessage(result) };
+}
+
+async function submitPoints(interaction, accountId) {
+  const { fields } = interaction;
+  const points = readPoints(fields);
+  if (points === null) {
+    return { content: `Digite só números, de 0 a ${db.WEEK_MAX}.`, components: [] };
+  }
+  const account = await db.getAccount(accountId);
+  if (!account) return { content: 'Essa conta não existe mais.', components: [] };
+  const week = Number(fields.getStringSelectValues('semana')[0]);
+  const result = await savePoints(account, points, week, interaction.user.id);
+  return { content: result.error || savePointsMessage(result), components: [] };
+}
+
+async function setRank(interaction, discordId) {
+  const patente = interaction.values[0];
+  if (!RANK_NAMES.includes(patente)) return { content: 'Patente inválida.', components: [] };
+  const member = await db.getMember(discordId);
+  if (!member) return { content: 'Esse membro não está mais registrado.', components: [] };
+  await db.updateMember(discordId, { patente });
+  await syncRankRole(interaction.guild, discordId, patente);
+  console.log(`Patente de ${discordId}: ${patente} (por ${interaction.user.id})`);
   return {
-    content: `Patente de **${member.nome}** (<@${user.id}>) atualizada para **${patente}**.`,
+    content: `Patente de **${member.nome}** (<@${discordId}>) atualizada para **${patente}**.`,
+    components: [],
   };
 }
 
@@ -558,9 +853,12 @@ module.exports = {
   buildMembersView,
   buildWaitlistView,
   buildExport,
+  buildPicker,
+  buildRegisterModal,
+  buildAccountModal,
   buildPointsModal,
-  buildRankModal,
-  buildRemoveModal,
+  buildRankChoice,
+  buildRemoveChoice,
   csvCell,
   isStaffInteraction,
   handleStaffInteraction,

@@ -9,6 +9,12 @@ const db = require('../db');
 const { isOfficer } = require('../permissions');
 const { syncRankRole } = require('../ranks');
 const { notifySlotFree } = require('../members');
+const {
+  memberOption,
+  respondMemberAutocomplete,
+  getMemberId,
+  NOT_FROM_LIST,
+} = require('../member-option');
 
 const DELETE_ACCOUNT_PREFIX = 'remover:apagar-conta:';
 const DELETE_MEMBER_PREFIX = 'remover:apagar-pessoa:';
@@ -36,7 +42,7 @@ async function startRemoval(interaction, { discordId, nick, action }) {
       : interaction.reply({ ...payload, flags: MessageFlags.Ephemeral });
 
   const member = await db.getMember(discordId);
-  if (!member) return reply({ content: `<@${discordId}> não está registrado.` });
+  if (!member) return reply({ content: NOT_FROM_LIST });
 
   const accounts = await db.getAccounts(discordId);
   const account = nick && accounts.find((a) => a.nick.toLowerCase() === nick.toLowerCase());
@@ -80,9 +86,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('remover')
     .setDescription('(Oficiais) Desativa ou apaga uma conta ou todas as contas de um membro')
-    .addUserOption((opt) =>
-      opt.setName('membro').setDescription('Membro a remover').setRequired(true)
-    )
+    .addStringOption((opt) => memberOption(opt, 'Membro a remover', true))
     .addStringOption((opt) =>
       opt
         .setName('acao')
@@ -100,13 +104,15 @@ module.exports = {
         .setRequired(false)
     ),
 
+  autocomplete: respondMemberAutocomplete,
+
   async execute(interaction) {
     if (!isOfficer(interaction)) {
       await interaction.reply({ content: ONLY_OFFICERS, flags: MessageFlags.Ephemeral });
       return;
     }
     await startRemoval(interaction, {
-      discordId: interaction.options.getUser('membro').id,
+      discordId: getMemberId(interaction),
       nick: interaction.options.getString('conta'),
       action: interaction.options.getString('acao'),
     });

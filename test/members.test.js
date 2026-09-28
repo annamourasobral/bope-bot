@@ -235,3 +235,33 @@ test('confirmar apaga a conta; cancelar não apaga nada', async (t) => {
   assert.deepStrictEqual(deleteAccount.mock.calls[0].arguments, [2]);
   assert.match(confirm.calls.update[0].content, /Malvada\*\* e os pontos dela foram apagados/);
 });
+
+test('autocomplete de membro sugere só pessoas registradas que batem com o texto', async (t) => {
+  const { respondMemberAutocomplete } = require('../src/member-option');
+  const listPeople = t.mock.fn(async () => ({
+    people: [
+      { discord_id: '42', nome: 'Maria', patente: 'SOLDADO', main_nick: 'MeuNick', accounts: 2 },
+    ],
+    total: 1,
+  }));
+  stubDb(t, { listPeople });
+  let responded;
+  await respondMemberAutocomplete({
+    options: { getFocused: () => '  meu ' },
+    respond: async (choices) => (responded = choices),
+  });
+  assert.deepStrictEqual(listPeople.mock.calls[0].arguments[0], { search: 'meu', limit: 25 });
+  assert.deepStrictEqual(responded, [
+    { name: 'MeuNick (+1 smurf) — Maria · SOLDADO', value: '42' },
+  ]);
+});
+
+test('/patente com texto que não veio da lista avisa para escolher da lista', async (t) => {
+  const patente = require('../src/commands/patente');
+  const updateMember = t.mock.fn();
+  stubDb(t, { getMember: async () => null, updateMember });
+  const i = fakeInteraction({ officer: true, options: { membro: 'fulano', patente: 'SOLDADO' } });
+  await patente.execute(i);
+  assert.match(i.calls.reply[0].content, /da lista/);
+  assert.strictEqual(updateMember.mock.callCount(), 0);
+});

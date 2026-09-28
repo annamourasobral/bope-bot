@@ -1,6 +1,13 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { isOfficer } = require('../permissions');
 const { resolveActiveAccount, savePoints, savePointsMessage } = require('../members');
+const {
+  memberOption,
+  respondMemberAutocomplete,
+  getMemberId,
+  NOT_FROM_LIST,
+} = require('../member-option');
+const db = require('../db');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -9,11 +16,8 @@ module.exports = {
     .addIntegerOption((opt) =>
       opt.setName('pontos').setDescription('Pontos da semana (0-600)').setRequired(true)
     )
-    .addUserOption((opt) =>
-      opt
-        .setName('membro')
-        .setDescription('(Oficiais) atualizar outro membro. Padrão: você')
-        .setRequired(false)
+    .addStringOption((opt) =>
+      memberOption(opt, '(Oficiais) atualizar outro membro. Padrão: você', false)
     )
     .addStringOption((opt) =>
       opt
@@ -28,14 +32,22 @@ module.exports = {
         .setRequired(false)
     ),
 
+  autocomplete: respondMemberAutocomplete,
+
   async execute(interaction) {
-    const targetUser = interaction.options.getUser('membro') || interaction.user;
+    const chosenId = getMemberId(interaction);
+    const targetUser = { id: chosenId || interaction.user.id };
 
     if (targetUser.id !== interaction.user.id && !isOfficer(interaction)) {
       await interaction.reply({
         content: 'Apenas oficiais podem registrar pontos de outro membro.',
         flags: MessageFlags.Ephemeral,
       });
+      return;
+    }
+
+    if (chosenId && !(await db.getMember(chosenId))) {
+      await interaction.reply({ content: NOT_FROM_LIST, flags: MessageFlags.Ephemeral });
       return;
     }
 
