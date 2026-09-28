@@ -2,7 +2,7 @@
 // e os painéis.
 const { EmbedBuilder } = require('discord.js');
 const db = require('./db');
-const { syncRankRole } = require('./ranks');
+const { syncRankRole, rankFromRoles } = require('./ranks');
 
 const PHONE_REGEX = /^\+\d{8,15}$/;
 // Textos dos campos de telefone e origem. Os membros moram em vários países, então o
@@ -153,10 +153,12 @@ async function saveMember(
     if (1 + smurfNicks.length > MAX_ACCOUNTS_PER_PERSON) {
       return { error: `No máximo ${MAX_ACCOUNTS_PER_PERSON} contas por pessoa.` };
     }
+    // Quem já tem cargo de patente no Discord mantém essa patente (não volta a RECRUTA).
+    const patente = await rankFromRoles(guild, discordId);
     try {
       const result = await db.registerMember(
         discordId,
-        { nome, origem, telefone },
+        { nome, origem, telefone, patente },
         [nick, ...smurfNicks],
         { approved }
       );
@@ -216,7 +218,7 @@ function saveMemberMessage({ member, accounts, created }) {
     ...accounts.map((a) => `• ${describeAccount(a)}`),
   ];
   if (created && accounts.some((a) => a.status === 'ativo')) {
-    lines.push(`Patente inicial: ${member.patente}.`);
+    lines.push(`Patente: ${member.patente}.`);
   }
   if (accounts.some((a) => a.status === 'espera')) {
     lines.push('Contas na lista de espera entram quando um oficial aprovar.');

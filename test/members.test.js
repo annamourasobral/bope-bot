@@ -4,6 +4,7 @@ const db = require('../src/db');
 const {
   parseNicks,
   saveMember,
+  saveMemberMessage,
   resolveActiveAccount,
   savePoints,
   addMemberAccount,
@@ -290,4 +291,48 @@ test('o formulário não sugere país no telefone', () => {
   const [, , origem, telefone] = buildRegisterModal(null).toJSON().components;
   assert.doesNotMatch(telefone.component.placeholder, /\d/);
   assert.match(origem.label, /Servidor do jogo/);
+});
+
+test('quem já é SOLDADO no Discord continua SOLDADO ao se registrar', async (t) => {
+  const { RANKS } = require('../src/ranks');
+  const role = (name) => RANKS.find((r) => r.name === name).roleId;
+  const roles = new Set([role('SOLDADO')]);
+  const changes = [];
+  const guild = {
+    members: {
+      fetch: async () => ({
+        roles: {
+          cache: { has: (id) => roles.has(id) },
+          add: async (id) => changes.push(['add', id]) && roles.add(id),
+          remove: async (ids) => changes.push(['remove', ids]),
+        },
+      }),
+    },
+  };
+  let registeredWith;
+  let getMemberCalls = 0;
+  stubDb(t, {
+    getMember: async () =>
+      getMemberCalls++ === 0 ? null : { ...MEMBER, patente: registeredWith.patente },
+    registerMember: async (id, person) => {
+      registeredWith = person;
+      return { member: { ...MEMBER, patente: person.patente }, accounts: [MAIN] };
+    },
+  });
+  const result = await saveMember(guild, '42', {
+    nome: 'Maria',
+    nick: 'MeuNick',
+    origem: 'BR',
+    telefone: '+5511987654321',
+  });
+  assert.strictEqual(registeredWith.patente, 'SOLDADO');
+  assert.deepStrictEqual(changes, [], 'nenhum cargo tirado ou dado');
+  assert.match(saveMemberMessage(result), /Patente: SOLDADO/);
+});
+
+test('quem não tem cargo de patente recebe RECRUTA', async (t) => {
+  const { rankFromRoles } = require('../src/ranks');
+  const guild = { members: { fetch: async () => ({ roles: { cache: { has: () => false } } }) } };
+  assert.strictEqual(await rankFromRoles(guild, '42'), null);
+  assert.strictEqual(await rankFromRoles(null, '42'), null);
 });

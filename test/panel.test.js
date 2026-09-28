@@ -121,7 +121,7 @@ test('registro pelo formulário cria a principal e as smurfs digitadas', async (
   await handlePanelInteraction(i);
   assert.deepStrictEqual(args, [
     '42',
-    { nome: 'Maria Silva', origem: 'BR', telefone: '+5511987654321' },
+    { nome: 'Maria Silva', origem: 'BR', telefone: '+5511987654321', patente: null },
     ['MeuNick', 'Malvada'],
     { approved: false },
   ]);

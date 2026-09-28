@@ -410,7 +410,7 @@ test('registrar pela staff: já entra aprovado e recusa quem já está registrad
   await handleStaffInteraction(first);
   assert.deepStrictEqual(args, [
     '555',
-    { nome: 'Novo', origem: 'PT', telefone: '+351912345678' },
+    { nome: 'Novo', origem: 'PT', telefone: '+351912345678', patente: null },
     ['NovoNick'],
     { approved: true },
   ]);

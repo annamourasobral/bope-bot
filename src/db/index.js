@@ -271,7 +271,13 @@ async function insertAccount(client, discordId, nick, isMain, approved) {
 // Primeiro registro: cria a pessoa e as contas (a primeira é a principal).
 // Retorna null se a pessoa já existir (ex: formulário enviado duas vezes).
 // `approved`: registro feito por oficial, não passa pela aprovação.
-async function registerMember(discordId, { nome, origem, telefone }, nicks, { approved } = {}) {
+// `patente` vazio = patente inicial (RECRUTA).
+async function registerMember(
+  discordId,
+  { nome, origem, telefone, patente },
+  nicks,
+  { approved } = {}
+) {
   return transaction(async (client) => {
     await lockAccounts(client);
     const existing = await client.query('SELECT 1 FROM members WHERE discord_id = $1', [discordId]);
@@ -280,10 +286,10 @@ async function registerMember(discordId, { nome, origem, telefone }, nicks, { ap
     for (const nick of nicks) await assertNickFree(client, nick);
 
     const { rows } = await client.query(
-      `INSERT INTO members (discord_id, nick, nome, origem, telefone)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO members (discord_id, nick, nome, origem, telefone, patente)
+       VALUES ($1, $2, $3, $4, $5, COALESCE($6, '${DEFAULT_RANK}'))
        RETURNING *`,
-      [discordId, nicks[0], nome, origem, telefone || null]
+      [discordId, nicks[0], nome, origem, telefone || null, patente || null]
     );
     const accounts = [];
     for (const [i, nick] of nicks.entries()) {

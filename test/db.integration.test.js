@@ -90,6 +90,14 @@ test.describe('banco (integração)', opts, () => {
     assert.deepStrictEqual([counts.ativo, counts.pessoas], [2, 1]);
   });
 
+  test('registro guarda a patente que a pessoa já tinha; sem ela, RECRUTA', async () => {
+    const { member: soldado } = await db.registerMember('100', { ...PERSON, patente: 'SOLDADO' }, [
+      'Athirst',
+    ]);
+    const { member: novo } = await db.registerMember('200', PERSON, ['Zeca']);
+    assert.deepStrictEqual([soldado.patente, novo.patente], ['SOLDADO', 'RECRUTA']);
+  });
+
   test('nick já usado por outra pessoa é recusado, sem diferenciar maiúsculas', async () => {
     await db.registerMember('100', PERSON, ['Athirst']);
     await assert.rejects(db.registerMember('200', PERSON, ['athirst']), { code: 'nick_taken' });

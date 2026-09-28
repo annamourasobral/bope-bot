@@ -41,8 +41,23 @@ async function syncRankRole(guild, discordId, rankName) {
   }
 }
 
+// Patente mais alta que a pessoa já tem como cargo no Discord (ex: quem já era SOLDADO
+// antes de existir o bot), ou null se não tiver nenhum cargo de patente.
+async function rankFromRoles(guild, discordId) {
+  if (!guild) return null;
+  try {
+    const member = await guild.members.fetch(discordId);
+    const owned = RANKS.filter((r) => member.roles.cache.has(r.roleId));
+    return owned.length > 0 ? owned[owned.length - 1].name : null;
+  } catch (err) {
+    console.warn(`Não foi possível ler os cargos de ${discordId}:`, err.message);
+    return null;
+  }
+}
+
 module.exports = {
   RANKS,
+  rankFromRoles,
   DEFAULT_RANK,
   RANK_NAMES,
   syncRankRole,
