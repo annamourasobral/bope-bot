@@ -16,6 +16,10 @@ const {
 const db = require('./db');
 const {
   NICK_MAX,
+  PHONE_PLACEHOLDER,
+  PHONE_HINT,
+  ORIGIN_LABEL,
+  ORIGIN_HINT,
   saveMember,
   saveMemberMessage,
   addMemberAccount,
@@ -98,8 +102,8 @@ function buildRegisterModal(member, mainNick) {
   const telefone = new TextInputBuilder()
     .setCustomId('telefone')
     .setStyle(TextInputStyle.Short)
-    .setPlaceholder('+5511987654321')
-    .setMaxLength(16)
+    .setPlaceholder(PHONE_PLACEHOLDER)
+    .setMaxLength(24)
     .setRequired(true);
   const origem = new StringSelectMenuBuilder()
     .setCustomId('origem')
@@ -107,11 +111,11 @@ function buildRegisterModal(member, mainNick) {
     .setRequired(true)
     .addOptions(
       new StringSelectMenuOptionBuilder()
-        .setLabel('Brasil (BR)')
+        .setLabel('Servidor BR')
         .setValue('BR')
         .setDefault(member?.origem === 'BR'),
       new StringSelectMenuOptionBuilder()
-        .setLabel('Portugal (PT)')
+        .setLabel('Servidor PT')
         .setValue('PT')
         .setDefault(member?.origem === 'PT')
     );
@@ -124,16 +128,19 @@ function buildRegisterModal(member, mainNick) {
 
   const labels = [
     new LabelBuilder()
-      .setLabel('Nome')
-      .setDescription('Aparece para os membros da guilda')
+      .setLabel('Seu nome real')
+      .setDescription('Nome e sobrenome, não o nick do jogo. Aparece para os membros da guilda.')
       .setTextInputComponent(nome),
     new LabelBuilder()
       .setLabel(member ? 'Nick da conta principal' : 'Nick no Wild Rift')
       .setTextInputComponent(nick),
-    new LabelBuilder().setLabel('Servidor de origem').setStringSelectMenuComponent(origem),
+    new LabelBuilder()
+      .setLabel(ORIGIN_LABEL)
+      .setDescription(ORIGIN_HINT)
+      .setStringSelectMenuComponent(origem),
     new LabelBuilder()
       .setLabel('Telefone')
-      .setDescription('Com DDI, ex: +5511987654321. Só você e os oficiais veem.')
+      .setDescription(PHONE_HINT)
       .setTextInputComponent(telefone),
   ];
 

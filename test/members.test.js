@@ -265,3 +265,29 @@ test('/patente com texto que não veio da lista avisa para escolher da lista', a
   assert.match(i.calls.reply[0].content, /da lista/);
   assert.strictEqual(updateMember.mock.callCount(), 0);
 });
+
+test('telefone aceita espaços, traços, parênteses e 00 no lugar do +', async (t) => {
+  const { normalizePhone } = require('../src/members');
+  assert.strictEqual(normalizePhone('+351 912 345 678'), '+351912345678');
+  assert.strictEqual(normalizePhone('+55 (11) 98765-4321'), '+5511987654321');
+  assert.strictEqual(normalizePhone('0044 7700 900123'), '+447700900123');
+  assert.strictEqual(normalizePhone(undefined), undefined);
+
+  let saved;
+  stubDb(t, {
+    getMember: async () => ({ ...MEMBER, telefone: '+5511987654321' }),
+    getAccounts: async () => [MAIN],
+    updateMember: async (id, f) => (saved = f) && { ...MEMBER, ...f },
+  });
+  await saveMember(null, '42', { telefone: '+44 7700 900123' });
+  assert.strictEqual(saved.telefone, '+447700900123');
+  const bad = await saveMember(null, '42', { telefone: '912 345 678' });
+  assert.match(bad.error, /código do país/);
+});
+
+test('o formulário não sugere país no telefone', () => {
+  const { buildRegisterModal } = require('../src/panel');
+  const [, , origem, telefone] = buildRegisterModal(null).toJSON().components;
+  assert.doesNotMatch(telefone.component.placeholder, /\d/);
+  assert.match(origem.label, /Servidor do jogo/);
+});

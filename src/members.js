@@ -5,6 +5,21 @@ const db = require('./db');
 const { syncRankRole } = require('./ranks');
 
 const PHONE_REGEX = /^\+\d{8,15}$/;
+// Textos dos campos de telefone e origem. Os membros moram em vários países, então o
+// telefone não tem nada a ver com a origem (servidor do jogo) e o exemplo não sugere país.
+const PHONE_PLACEHOLDER = '+ código do país e número';
+const PHONE_HINT = 'Com o código do país do número que você usa hoje. Só você e os oficiais veem.';
+const ORIGIN_LABEL = 'Servidor do jogo (BR ou PT)';
+const ORIGIN_HINT = 'Servidor do Wild Rift de onde você veio. Não é o país onde mora.';
+const PHONE_INVALID =
+  'Telefone inválido. Use **+**, o código do país do número que você usa hoje e o número, ex: `+351 912 345 678` ou `+55 11 98765 4321`.';
+
+// "+351 912-345-678", "(+44) 7700 900123" ou "0044..." -> "+351912345678".
+function normalizePhone(text) {
+  if (typeof text !== 'string') return text;
+  const compact = text.replace(/[\s\-().]/g, '');
+  return compact.startsWith('00') ? `+${compact.slice(2)}` : compact;
+}
 const NICK_MAX = 32;
 // Principal + smurfs por pessoa.
 const MAX_ACCOUNTS_PER_PERSON = 5;
@@ -118,8 +133,9 @@ async function saveMember(
   { nome, nick, origem, telefone, smurfs },
   { approved = false } = {}
 ) {
+  telefone = normalizePhone(telefone);
   if (telefone !== undefined && !PHONE_REGEX.test(telefone || '')) {
-    return { error: 'Telefone inválido. Use o formato com DDI, ex: `+5511987654321`.' };
+    return { error: PHONE_INVALID };
   }
   const smurfNicks = parseNicks(smurfs);
   const nickError = validateNicks([...(nick ? [nick] : []), ...smurfNicks]);
@@ -131,7 +147,7 @@ async function saveMember(
     if (!nick || !nome || !origem || !telefone) {
       return {
         error:
-          'Primeiro registro precisa de **nome**, **nick**, **origem** e **telefone** (smurf é opcional). Ex: `/registrar nome:"Maria Silva" nick:MeuNick origem:BR telefone:+5511987654321`.',
+          'Primeiro registro precisa de **nome**, **nick**, **origem** e **telefone** (smurf é opcional). Ex: `/registrar nome:"Maria Silva" nick:MeuNick origem:BR telefone:+351912345678`.',
       };
     }
     if (1 + smurfNicks.length > MAX_ACCOUNTS_PER_PERSON) {
@@ -351,6 +367,11 @@ async function buildStatusEmbed(member, season, showPhone) {
 
 module.exports = {
   PHONE_REGEX,
+  PHONE_PLACEHOLDER,
+  PHONE_HINT,
+  ORIGIN_LABEL,
+  ORIGIN_HINT,
+  normalizePhone,
   NICK_MAX,
   MAX_ACCOUNTS_PER_PERSON,
   parseNicks,

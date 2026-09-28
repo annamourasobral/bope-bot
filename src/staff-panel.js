@@ -22,6 +22,8 @@ const { isOfficer } = require('./permissions');
 const { RANK_NAMES, syncRankRole } = require('./ranks');
 const {
   NICK_MAX,
+  PHONE_PLACEHOLDER,
+  ORIGIN_LABEL,
   ruleErrorMessage,
   describeStatus,
   onAccountsActivated,
@@ -457,26 +459,29 @@ function buildRegisterModal() {
         .setUserSelectMenuComponent(
           new UserSelectMenuBuilder().setCustomId('membro').setRequired(true)
         ),
-      new LabelBuilder().setLabel('Nome').setTextInputComponent(textInput('nome', 100)),
+      new LabelBuilder()
+        .setLabel('Nome real da pessoa')
+        .setDescription('Nome e sobrenome, não o nick do jogo')
+        .setTextInputComponent(textInput('nome', 100)),
       new LabelBuilder()
         .setLabel('Nick da conta principal')
         .setDescription('Smurfs: depois, pelo botão ➕ Conta')
         .setTextInputComponent(textInput('nick', NICK_MAX)),
       new LabelBuilder()
-        .setLabel('Servidor de origem')
+        .setLabel(ORIGIN_LABEL)
         .setStringSelectMenuComponent(
           new StringSelectMenuBuilder()
             .setCustomId('origem')
             .setRequired(true)
             .addOptions(
-              new StringSelectMenuOptionBuilder().setLabel('Brasil (BR)').setValue('BR'),
-              new StringSelectMenuOptionBuilder().setLabel('Portugal (PT)').setValue('PT')
+              new StringSelectMenuOptionBuilder().setLabel('Servidor BR').setValue('BR'),
+              new StringSelectMenuOptionBuilder().setLabel('Servidor PT').setValue('PT')
             )
         ),
       new LabelBuilder()
         .setLabel('Telefone')
-        .setDescription('Com DDI, ex: +5511987654321')
-        .setTextInputComponent(textInput('telefone', 16, { placeholder: '+5511987654321' }))
+        .setDescription('Com o código do país do número que a pessoa usa hoje')
+        .setTextInputComponent(textInput('telefone', 24, { placeholder: PHONE_PLACEHOLDER }))
     );
 }
 

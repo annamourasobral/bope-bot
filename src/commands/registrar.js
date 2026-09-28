@@ -7,7 +7,10 @@ module.exports = {
     .setName('registrar')
     .setDescription('Registra ou edita seu nome, nick, origem, telefone e smurfs na guilda')
     .addStringOption((opt) =>
-      opt.setName('nome').setDescription('Seu nome real').setRequired(false)
+      opt
+        .setName('nome')
+        .setDescription('Seu nome real (nome e sobrenome), não o nick do jogo')
+        .setRequired(false)
     )
     .addStringOption((opt) =>
       opt.setName('nick').setDescription('Seu nick no Wild Rift').setRequired(false)
@@ -15,14 +18,14 @@ module.exports = {
     .addStringOption((opt) =>
       opt
         .setName('origem')
-        .setDescription('Servidor de origem')
+        .setDescription('Servidor do jogo de onde você veio (não é o país onde mora)')
         .setRequired(false)
         .addChoices({ name: 'BR', value: 'BR' }, { name: 'PT', value: 'PT' })
     )
     .addStringOption((opt) =>
       opt
         .setName('telefone')
-        .setDescription('Telefone com DDI (ex: +5511987654321). Obrigatório no primeiro registro')
+        .setDescription('Com + e o código do país do número que você usa hoje. Obrigatório')
         .setRequired(false)
     )
     .addStringOption((opt) =>

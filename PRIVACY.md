@@ -36,8 +36,6 @@ A base legal é o consentimento que você dá ao registrar os seus dados e o int
 - **O telefone** só aparece para você mesmo e para os oficiais, em respostas visíveis apenas para quem executou o comando.
 - **Oficiais** podem ver e editar os dados de todos os membros, ver a lista de espera e exportar uma planilha com os dados de todos (inclusive telefones) para a organização da guilda. A planilha não deve ser compartilhada fora da liderança.
 
-Se não quiser que o seu nome real fique visível aos outros membros, use um nome ou apelido no campo "nome".
-
 ## 4. Onde os dados ficam
 
 - **Banco de dados:** [Neon](https://neon.tech) (PostgreSQL), com servidores na União Europeia (Frankfurt, Alemanha).
